@@ -22,7 +22,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # Install EAS CLI directly (no expo-github-action wrapper needed)
       - name: Install EAS CLI
