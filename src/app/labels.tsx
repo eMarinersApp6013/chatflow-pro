@@ -30,7 +30,7 @@ export default function LabelsScreen() {
     (label: LabelWithCount) => {
       // Set the label filter on the conversation list and navigate home
       setFilters({ labels: [label.title] });
-      router.push('/(tabs)/');
+      router.push('/(tabs)' as never);
     },
     [setFilters]
   );
