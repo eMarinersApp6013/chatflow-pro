@@ -13,7 +13,7 @@ import WishlistModel from './models/WishlistModel';
 const adapter = new SQLiteAdapter({
   schema,
   dbName: 'chatflowpro',
-  // jsi: true — enable for production builds with JSI support
+  jsi: true,
   onSetUpError: (error) => {
     console.error('[DB] Setup error:', error);
   },
