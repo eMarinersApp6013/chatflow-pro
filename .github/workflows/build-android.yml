@@ -1,0 +1,39 @@
+name: Build Android APK
+
+on:
+  # Run automatically on every push to the dev branch
+  push:
+    branches:
+      - claude/setup-expo-typescript-XN4x1
+  # Also allow triggering manually from GitHub → Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK (EAS Preview)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS + Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android APK via EAS
+        run: eas build --platform android --profile preview --non-interactive
+
+      - name: Print build URL
+        run: echo "✅ Build submitted! Check https://expo.dev/accounts/emarinersapp6013/projects/chatflow-pro/builds for the APK download link."

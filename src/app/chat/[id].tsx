@@ -75,7 +75,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
 
   const { conversation, isLoading } = useConversation(remoteId);
-  const { messages, sendMessage, loadMore } = useMessages(remoteId);
+  const { messages, sendMessage, retryMessage, loadMore } = useMessages(remoteId);
   const { typingUsers } = useTyping(remoteId);
 
   const [mode, setMode] = useState<MessageMode>('reply');
@@ -306,11 +306,12 @@ export default function ChatScreen() {
             showTail={shouldShowTail(index)}
             onLongPress={handleLongPress}
             onImagePress={handleImagePress}
+            onRetry={retryMessage}
           />
         </SwipeReply>
       </View>
     ),
-    [shouldShowDate, shouldShowTail, handleLongPress, handleSwipeReply, handleImagePress]
+    [shouldShowDate, shouldShowTail, handleLongPress, handleSwipeReply, handleImagePress, retryMessage]
   );
 
   const keyExtractor = (item: MessageModel) => item.id;
