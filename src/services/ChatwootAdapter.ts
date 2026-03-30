@@ -19,18 +19,13 @@ export class ChatwootAdapter extends ChatService {
   private apiToken: string = '';
   private accountId: number = 0;
 
-  // Called after login to configure the adapter for subsequent requests
   configure(baseUrl: string, apiToken: string, accountId: number): void {
-    // Strip trailing slash to keep URL construction predictable
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.apiToken = apiToken;
     this.accountId = accountId;
   }
 
-  private async request<T>(
-    path: string,
-    options: RequestInit = {}
-  ): Promise<T> {
+  private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const res = await fetch(url, {
       ...options,
@@ -40,30 +35,20 @@ export class ChatwootAdapter extends ChatService {
         ...options.headers,
       },
     });
-
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
       throw new Error(`API ${res.status}: ${text}`);
     }
-
     return res.json() as Promise<T>;
   }
 
   async login(chatwootUrl: string, apiToken: string): Promise<LoginResult> {
     const cleanUrl = chatwootUrl.replace(/\/$/, '');
-    const profile = await (async () => {
-      const res = await fetch(`${cleanUrl}${API.PROFILE}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          api_access_token: apiToken,
-        },
-      });
-      if (!res.ok) {
-        throw new Error(`Login failed (${res.status}). Check URL and token.`);
-      }
-      return res.json() as Promise<ChatwootProfile>;
-    })();
-
+    const res = await fetch(`${cleanUrl}${API.PROFILE}`, {
+      headers: { 'Content-Type': 'application/json', api_access_token: apiToken },
+    });
+    if (!res.ok) throw new Error(`Login failed (${res.status}). Check URL and token.`);
+    const profile = await res.json() as ChatwootProfile;
     this.configure(cleanUrl, apiToken, profile.account_id);
     return { profile };
   }
@@ -72,19 +57,11 @@ export class ChatwootAdapter extends ChatService {
     filters: Partial<ConversationFilters> = {},
     page = 1
   ): Promise<ChatwootConversation[]> {
-    const params = new URLSearchParams({
-      page: String(page),
-      status: filters.status ?? 'open',
-    });
-
+    const params = new URLSearchParams({ page: String(page), status: filters.status ?? 'open' });
     if (filters.assigneeType && filters.assigneeType !== 'all') {
       params.set('assignee_type', filters.assigneeType);
     }
-
-    if (filters.labels?.length) {
-      filters.labels.forEach((l) => params.append('labels[]', l));
-    }
-
+    filters.labels?.forEach((l) => params.append('labels[]', l));
     const data = await this.request<{ data: { payload: ChatwootConversation[] } }>(
       `${API.CONVERSATIONS(this.accountId)}?${params.toString()}`
     );
@@ -92,15 +69,10 @@ export class ChatwootAdapter extends ChatService {
   }
 
   async getConversation(id: number): Promise<ChatwootConversation> {
-    return this.request<ChatwootConversation>(
-      API.CONVERSATION(this.accountId, id)
-    );
+    return this.request<ChatwootConversation>(API.CONVERSATION(this.accountId, id));
   }
 
-  async getMessages(
-    conversationId: number,
-    before?: number
-  ): Promise<ChatwootMessage[]> {
+  async getMessages(conversationId: number, before?: number): Promise<ChatwootMessage[]> {
     const path =
       API.CONVERSATION_MESSAGES(this.accountId, conversationId) +
       (before ? `?before=${before}` : '');
@@ -114,11 +86,38 @@ export class ChatwootAdapter extends ChatService {
   ): Promise<ChatwootMessage> {
     return this.request<ChatwootMessage>(
       API.CONVERSATION_MESSAGES(this.accountId, conversationId),
-      {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }
+      { method: 'POST', body: JSON.stringify(payload) }
     );
+  }
+
+  // Send a file attachment using multipart/form-data
+  async sendAttachment(
+    conversationId: number,
+    fileUri: string,
+    fileName: string,
+    mimeType: string,
+    isPrivate = false
+  ): Promise<ChatwootMessage> {
+    const url = `${this.baseUrl}${API.CONVERSATION_MESSAGES(this.accountId, conversationId)}`;
+    const form = new FormData();
+    form.append('message_type', 'outgoing');
+    form.append('private', String(isPrivate));
+    form.append('attachments[]', {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType,
+    } as unknown as Blob);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { api_access_token: this.apiToken },
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Upload ${res.status}: ${text}`);
+    }
+    return res.json() as Promise<ChatwootMessage>;
   }
 
   async deleteMessage(conversationId: number, messageId: number): Promise<void> {
@@ -128,26 +127,17 @@ export class ChatwootAdapter extends ChatService {
     );
   }
 
-  async toggleStatus(
-    conversationId: number,
-    status: ConversationStatus
-  ): Promise<void> {
-    await this.request<void>(
-      API.CONVERSATION_TOGGLE_STATUS(this.accountId, conversationId),
-      {
-        method: 'POST',
-        body: JSON.stringify({ status }),
-      }
-    );
+  async toggleStatus(conversationId: number, status: ConversationStatus): Promise<void> {
+    await this.request<void>(API.CONVERSATION_TOGGLE_STATUS(this.accountId, conversationId), {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
   }
 
   async setLabels(conversationId: number, labels: string[]): Promise<string[]> {
     const data = await this.request<{ payload: string[] }>(
       API.CONVERSATION_LABELS(this.accountId, conversationId),
-      {
-        method: 'POST',
-        body: JSON.stringify({ labels }),
-      }
+      { method: 'POST', body: JSON.stringify({ labels }) }
     );
     return data.payload;
   }
@@ -162,6 +152,13 @@ export class ChatwootAdapter extends ChatService {
 
   async getContact(id: number): Promise<ChatwootContact> {
     return this.request<ChatwootContact>(API.CONTACT(this.accountId, id));
+  }
+
+  async getContactConversations(contactId: number): Promise<ChatwootConversation[]> {
+    const data = await this.request<{ payload: ChatwootConversation[] }>(
+      API.CONTACT_CONVERSATIONS(this.accountId, contactId)
+    );
+    return data.payload;
   }
 
   async getLabels(): Promise<ChatwootLabel[]> {
