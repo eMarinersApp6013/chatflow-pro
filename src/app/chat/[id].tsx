@@ -3,6 +3,8 @@
 //           WebSocket real-time updates, typing indicators, connection status.
 // Phase 3: LongPressMenu, SwipeReply, AttachmentDrawer, ImageViewer,
 //           label chips in header, star/delete actions.
+// Phase 4: AssignmentDrawer, StatusPicker, MacrosDrawer, templates link,
+//           MoreVertical menu for header actions.
 
 import {
   useCallback,
@@ -20,9 +22,12 @@ import {
   KeyboardAvoidingView,
   ListRenderItemInfo,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Phone, MoreVertical } from 'lucide-react-native';
+import {
+  ArrowLeft, Phone, MoreVertical, UserPlus, RefreshCw, Zap, FileText, X,
+} from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useUIStore } from '../../store/uiStore';
@@ -45,13 +50,16 @@ import LongPressMenu from '../../components/chat/LongPressMenu';
 import SwipeReply from '../../components/chat/SwipeReply';
 import AttachmentDrawer from '../../components/chat/AttachmentDrawer';
 import ImageViewer from '../../components/chat/ImageViewer';
+import AssignmentDrawer from '../../components/chat/AssignmentDrawer';
+import StatusPicker from '../../components/chat/StatusPicker';
+import MacrosDrawer from '../../components/chat/MacrosDrawer';
 
 import type MessageModel from '../../db/models/MessageModel';
 import type { ReplyContext, MessageMode } from '../../types/app';
-import type { ChatwootWebSocketEvent } from '../../types/chatwoot';
+import type { ChatwootWebSocketEvent, ChatwootAgent, ChatwootTeam, ConversationStatus } from '../../types/chatwoot';
 import type { PickedFile } from '../../components/chat/AttachmentDrawer';
 import { formatDate } from '../../utils/formatters';
-import { database, messagesCollection } from '../../db/database';
+import { database, messagesCollection, conversationsCollection } from '../../db/database';
 import { Q } from '@nozbe/watermelondb';
 
 // ─────────────────────────────────────────────────────────────
@@ -79,6 +87,12 @@ export default function ChatScreen() {
   const [attachmentDrawerVisible, setAttachmentDrawerVisible] = useState(false);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
+
+  // Phase 4 state
+  const [assignmentVisible, setAssignmentVisible] = useState(false);
+  const [statusPickerVisible, setStatusPickerVisible] = useState(false);
+  const [macrosVisible, setMacrosVisible] = useState(false);
+  const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const prevMessageCount = useRef(0);
@@ -153,19 +167,13 @@ export default function ChatScreen() {
     [mode, sendMessage]
   );
 
-  // ── Attachment picked → upload via chatService ─────────────
+  // ── Attachment picked → upload ─────────────────────────────
   const handleFilePicked = useCallback(
     async (file: PickedFile) => {
       try {
-        await chatService.sendAttachment(
-          remoteId,
-          file.uri,
-          file.name,
-          file.mimeType,
-          mode === 'note'
-        );
+        await chatService.sendAttachment(remoteId, file.uri, file.name, file.mimeType, mode === 'note');
       } catch {
-        // Silently fail — user can retry
+        // Silently fail
       }
     },
     [remoteId, mode]
@@ -186,7 +194,6 @@ export default function ChatScreen() {
     });
   }, []);
 
-  // ── Menu: Reply ────────────────────────────────────────────
   const handleMenuReply = useCallback((msg: MessageModel) => {
     setReplyContext({
       messageId: msg.remoteId,
@@ -195,21 +202,17 @@ export default function ChatScreen() {
     });
   }, []);
 
-  // ── Menu: Star / Unstar ────────────────────────────────────
   const handleMenuStar = useCallback(async (msg: MessageModel) => {
     await database.write(async () => {
       await msg.update((m) => { m.isStarred = !m.isStarred; });
     });
   }, []);
 
-  // ── Menu: Delete ───────────────────────────────────────────
   const handleMenuDelete = useCallback(
     async (msg: MessageModel) => {
       try {
         await chatService.deleteMessage(remoteId, msg.remoteId);
-        await database.write(async () => {
-          await msg.destroyPermanently();
-        });
+        await database.write(async () => { await msg.destroyPermanently(); });
       } catch {
         // Silently fail
       }
@@ -217,13 +220,63 @@ export default function ChatScreen() {
     [remoteId]
   );
 
-  // ── Image viewer ───────────────────────────────────────────
   const handleImagePress = useCallback((uri: string) => {
     setViewerUri(uri);
     setViewerVisible(true);
   }, []);
 
-  // ── Determine if tail should show (last of a run) ─────────
+  // ── Phase 4: Assignment ────────────────────────────────────
+  const handleAssignAgent = useCallback(
+    async (agent: ChatwootAgent) => {
+      try {
+        await chatService.assignConversation(remoteId, agent.id);
+        // Update local DB optimistically
+        const convs = await conversationsCollection.query(Q.where('remote_id', remoteId)).fetch();
+        if (convs.length > 0) {
+          await database.write(async () => {
+            await convs[0].update((c) => {
+              c.assigneeId = agent.id;
+              c.assigneeName = agent.name;
+            });
+          });
+        }
+      } catch {
+        // Silently fail
+      }
+    },
+    [remoteId]
+  );
+
+  const handleAssignTeam = useCallback(
+    async (team: ChatwootTeam) => {
+      try {
+        await chatService.assignTeam(remoteId, team.id);
+      } catch {
+        // Silently fail
+      }
+    },
+    [remoteId]
+  );
+
+  // ── Phase 4: Status change ─────────────────────────────────
+  const handleStatusChange = useCallback(
+    async (status: ConversationStatus) => {
+      try {
+        await chatService.toggleStatus(remoteId, status);
+        const convs = await conversationsCollection.query(Q.where('remote_id', remoteId)).fetch();
+        if (convs.length > 0) {
+          await database.write(async () => {
+            await convs[0].update((c) => { c.status = status; });
+          });
+        }
+      } catch {
+        // Silently fail
+      }
+    },
+    [remoteId]
+  );
+
+  // ── Tail / date helpers ────────────────────────────────────
   const shouldShowTail = useCallback(
     (index: number): boolean => {
       if (index === messages.length - 1) return true;
@@ -234,54 +287,40 @@ export default function ChatScreen() {
     [messages]
   );
 
-  // ── Determine if date separator should show ────────────────
   const shouldShowDate = useCallback(
     (index: number): boolean => {
       if (index === 0) return true;
-      const prev = messages[index - 1];
-      const curr = messages[index];
-      return formatDate(prev.createdAt) !== formatDate(curr.createdAt);
+      return formatDate(messages[index - 1].createdAt) !== formatDate(messages[index].createdAt);
     },
     [messages]
   );
 
   // ── Render each message row ────────────────────────────────
   const renderItem = useCallback(
-    ({ item, index }: ListRenderItemInfo<MessageModel>) => {
-      const showDate = shouldShowDate(index);
-      const showTail = shouldShowTail(index);
-
-      return (
-        <View>
-          {showDate && <DateSeparator timestamp={item.createdAt} />}
-          <SwipeReply
-            onReply={() => handleSwipeReply(item)}
-            enabled={!item.isActivity}
-          >
-            <MessageBubble
-              message={item}
-              showTail={showTail}
-              onLongPress={handleLongPress}
-              onImagePress={handleImagePress}
-            />
-          </SwipeReply>
-        </View>
-      );
-    },
+    ({ item, index }: ListRenderItemInfo<MessageModel>) => (
+      <View>
+        {shouldShowDate(index) && <DateSeparator timestamp={item.createdAt} />}
+        <SwipeReply onReply={() => handleSwipeReply(item)} enabled={!item.isActivity}>
+          <MessageBubble
+            message={item}
+            showTail={shouldShowTail(index)}
+            onLongPress={handleLongPress}
+            onImagePress={handleImagePress}
+          />
+        </SwipeReply>
+      </View>
+    ),
     [shouldShowDate, shouldShowTail, handleLongPress, handleSwipeReply, handleImagePress]
   );
 
   const keyExtractor = (item: MessageModel) => item.id;
 
-  // ── Status display ─────────────────────────────────────────
   const statusLabel =
-    conversation?.status === 'resolved'
-      ? '✓ Resolved'
-      : conversation?.status === 'pending'
-      ? '⏳ Pending'
-      : null;
+    conversation?.status === 'resolved' ? '✓ Resolved'
+    : conversation?.status === 'pending' ? '⏳ Pending'
+    : conversation?.status === 'snoozed' ? '💤 Snoozed'
+    : null;
 
-  // ── Conversation labels ────────────────────────────────────
   const convLabels: string[] = conversation?.labels ?? [];
 
   const s = StyleSheet.create({
@@ -331,6 +370,35 @@ export default function ChatScreen() {
     resolvedText: { fontSize: 13, color: colors.textDim, fontStyle: 'italic' },
     chatBackground: { flex: 1, backgroundColor: colors.bg },
     listContent: { paddingTop: 8, paddingBottom: 4 },
+    // Header popup menu
+    popupOverlay: { flex: 1 },
+    popup: {
+      position: 'absolute',
+      top: (Platform.OS === 'ios' ? insets.top : 8) + 52,
+      right: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      minWidth: 200,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 8,
+      elevation: 8,
+      overflow: 'hidden',
+    },
+    popupRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    popupRowLast: { borderBottomWidth: 0 },
+    popupLabel: { fontSize: 15, color: colors.text },
   });
 
   return (
@@ -355,10 +423,7 @@ export default function ChatScreen() {
 
         <TouchableOpacity
           style={s.headerInfo}
-          onPress={() =>
-            conversation &&
-            router.push(`/contact/${conversation.remoteId}`)
-          }
+          onPress={() => conversation && router.push(`/contact/${conversation.remoteId}`)}
           activeOpacity={0.7}
         >
           <Text style={s.headerName} numberOfLines={1}>
@@ -366,7 +431,7 @@ export default function ChatScreen() {
           </Text>
           {conversation?.assigneeName ? (
             <Text style={s.headerSub} numberOfLines={1}>
-              Assigned to {conversation.assigneeName}
+              {conversation.assigneeName}
             </Text>
           ) : typingUsers.length > 0 ? (
             <Text style={s.headerSub}>typing…</Text>
@@ -377,7 +442,7 @@ export default function ChatScreen() {
           <TouchableOpacity style={s.headerBtn}>
             <Phone color="#ffffff" size={20} />
           </TouchableOpacity>
-          <TouchableOpacity style={s.headerBtn}>
+          <TouchableOpacity style={s.headerBtn} onPress={() => setHeaderMenuVisible(true)}>
             <MoreVertical color="#ffffff" size={20} />
           </TouchableOpacity>
         </View>
@@ -385,11 +450,7 @@ export default function ChatScreen() {
 
       {/* ── Label chips (if any) ── */}
       {convLabels.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.labelChips}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.labelChips}>
           {convLabels.map((lbl) => (
             <View key={lbl} style={s.labelChip}>
               <Text style={s.labelChipText}>{lbl}</Text>
@@ -405,6 +466,9 @@ export default function ChatScreen() {
       {statusLabel && (
         <View style={s.resolvedBanner}>
           <Text style={s.resolvedText}>{statusLabel}</Text>
+          <TouchableOpacity onPress={() => setStatusPickerVisible(true)}>
+            <Text style={{ fontSize: 12, color: colors.green }}>Change</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -420,21 +484,15 @@ export default function ChatScreen() {
             keyExtractor={keyExtractor}
             contentContainerStyle={s.listContent}
             onScrollBeginDrag={() => {
-              if (messages.length >= 30 && messages[0]) {
-                loadMore(messages[0].remoteId);
-              }
+              if (messages.length >= 30 && messages[0]) loadMore(messages[0].remoteId);
             }}
             windowSize={12}
             maxToRenderPerBatch={20}
             updateCellsBatchingPeriod={25}
             removeClippedSubviews
             initialNumToRender={25}
-            onLayout={() =>
-              listRef.current?.scrollToEnd({ animated: false })
-            }
+            onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
           />
-
-          {/* ── Typing indicator ── */}
           {typingUsers.length > 0 && (
             <TypingIndicator names={typingUsers.map((u) => u.userName)} />
           )}
@@ -460,18 +518,92 @@ export default function ChatScreen() {
         onStar={handleMenuStar}
         onDelete={handleMenuDelete}
       />
-
       <AttachmentDrawer
         visible={attachmentDrawerVisible}
         onClose={() => setAttachmentDrawerVisible(false)}
         onFilePicked={handleFilePicked}
       />
-
       <ImageViewer
         uri={viewerUri}
         visible={viewerVisible}
         onClose={() => setViewerVisible(false)}
       />
+
+      {/* ── Phase 4 overlays ── */}
+      <AssignmentDrawer
+        visible={assignmentVisible}
+        currentAssigneeId={conversation?.assigneeId ?? null}
+        onClose={() => setAssignmentVisible(false)}
+        onAssignAgent={handleAssignAgent}
+        onAssignTeam={handleAssignTeam}
+      />
+      <StatusPicker
+        visible={statusPickerVisible}
+        currentStatus={(conversation?.status as ConversationStatus) ?? 'open'}
+        onClose={() => setStatusPickerVisible(false)}
+        onSelect={handleStatusChange}
+      />
+      <MacrosDrawer
+        visible={macrosVisible}
+        conversationId={remoteId}
+        onClose={() => setMacrosVisible(false)}
+        onMacroRun={() => {/* conversation will update via WS */}}
+      />
+
+      {/* ── Header popup menu ── */}
+      <Modal
+        transparent
+        visible={headerMenuVisible}
+        animationType="fade"
+        onRequestClose={() => setHeaderMenuVisible(false)}
+      >
+        <TouchableOpacity
+          style={s.popupOverlay}
+          activeOpacity={1}
+          onPress={() => setHeaderMenuVisible(false)}
+        >
+          <View style={s.popup}>
+            <TouchableOpacity
+              style={s.popupRow}
+              onPress={() => { setHeaderMenuVisible(false); setAssignmentVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <UserPlus color={colors.textDim} size={18} />
+              <Text style={s.popupLabel}>Assign Agent / Team</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={s.popupRow}
+              onPress={() => { setHeaderMenuVisible(false); setStatusPickerVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <RefreshCw color={colors.textDim} size={18} />
+              <Text style={s.popupLabel}>Change Status</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={s.popupRow}
+              onPress={() => { setHeaderMenuVisible(false); setMacrosVisible(true); }}
+              activeOpacity={0.7}
+            >
+              <Zap color={colors.textDim} size={18} />
+              <Text style={s.popupLabel}>Quick Macros</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.popupRow, s.popupRowLast]}
+              onPress={() => {
+                setHeaderMenuVisible(false);
+                router.push(`/templates?conversationId=${remoteId}&inboxId=${conversation?.inboxId ?? 0}`);
+              }}
+              activeOpacity={0.7}
+            >
+              <FileText color={colors.textDim} size={18} />
+              <Text style={s.popupLabel}>Send Template</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }

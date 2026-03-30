@@ -1,5 +1,6 @@
-// Chats tab — conversation list with status + assignee filter chips.
+// Chats tab — conversation list with status, assignee, and inbox filter chips.
 // Real-time via WatermelonDB observe() + background API sync.
+// Phase 4: added inbox filter row below status/assignee chips.
 
 import { useCallback, useEffect } from 'react';
 import {
@@ -12,15 +13,17 @@ import {
   RefreshControl,
   Platform,
   ListRenderItemInfo,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Search } from 'lucide-react-native';
+import { Search, MessageSquarePlus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
 import { useConnectionStore } from '../../store/connectionStore';
 import { useConversations } from '../../hooks/useConversations';
+import { useInboxes } from '../../hooks/useInboxes';
 import { wsService } from '../../services/WebSocketService';
 
 import ConversationCard from '../../components/conversations/ConversationCard';
@@ -30,6 +33,10 @@ import ConnectionStatus from '../../components/common/ConnectionStatus';
 
 import ConversationModel from '../../db/models/ConversationModel';
 import type { StatusFilter, FilterTab } from '../../types/app';
+
+// ─────────────────────────────────────────────────────────────
+// Filter options
+// ─────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: { label: string; value: StatusFilter }[] = [
   { label: 'Open', value: 'open' },
@@ -43,11 +50,29 @@ const ASSIGNEE_OPTIONS: { label: string; value: FilterTab }[] = [
   { label: 'Unassigned', value: 'unassigned' },
 ];
 
+// Channel type → emoji icon
+function channelEmoji(channelType: string): string {
+  const t = channelType?.toLowerCase() ?? '';
+  if (t.includes('whatsapp')) return '💬';
+  if (t.includes('telegram')) return '✈️';
+  if (t.includes('email')) return '📧';
+  if (t.includes('facebook')) return '👤';
+  if (t.includes('twitter') || t.includes('x_twitter')) return '𝕏';
+  if (t.includes('instagram')) return '📷';
+  if (t.includes('web')) return '🌐';
+  return '💬';
+}
+
+// ─────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────
+
 export default function ChatsScreen() {
   const { colors, filters, setFilters } = useUIStore();
   const { credentials } = useAuthStore();
   const { setConnectionState } = useConnectionStore();
   const { conversations, isSyncing, syncError, refetch } = useConversations();
+  const { inboxes } = useInboxes();
   const insets = useSafeAreaInsets();
 
   // Wire WebSocket connection state → store so ConnectionStatus banner updates
@@ -73,25 +98,28 @@ export default function ChatsScreen() {
     headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
     agentName: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
     headerBtn: { padding: 6, marginLeft: 6 },
-
     filterSection: {
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
-      paddingBottom: 8,
+      paddingBottom: 4,
     },
     filterRow: { paddingTop: 8, paddingHorizontal: 8 },
-    filterLabel: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: colors.textDim2,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      paddingHorizontal: 10,
+    inboxRow: {
       paddingTop: 6,
-      paddingBottom: 2,
+      paddingBottom: 4,
     },
-
+    inboxScroll: { paddingHorizontal: 10, gap: 6 },
+    inboxChip: {
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderWidth: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    inboxChipText: { fontSize: 12, fontWeight: '600' },
     listContent: { paddingBottom: 16 },
     syncBar: {
       flexDirection: 'row',
@@ -152,6 +180,62 @@ export default function ChatsScreen() {
             small
           />
         </View>
+
+        {/* Inbox row — shown only when multiple inboxes exist */}
+        {inboxes.length > 1 && (
+          <View style={s.inboxRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.inboxScroll}
+            >
+              {/* "All" chip */}
+              {(() => {
+                const active = !filters.inboxId;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      s.inboxChip,
+                      {
+                        backgroundColor: active ? colors.green + '22' : colors.surface2,
+                        borderColor: active ? colors.green : colors.border,
+                      },
+                    ]}
+                    onPress={() => setFilters({ inboxId: undefined })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.inboxChipText, { color: active ? colors.green : colors.textDim }]}>
+                      All Inboxes
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })()}
+
+              {inboxes.map((inbox) => {
+                const active = filters.inboxId === inbox.id;
+                return (
+                  <TouchableOpacity
+                    key={inbox.id}
+                    style={[
+                      s.inboxChip,
+                      {
+                        backgroundColor: active ? colors.green + '22' : colors.surface2,
+                        borderColor: active ? colors.green : colors.border,
+                      },
+                    ]}
+                    onPress={() => setFilters({ inboxId: active ? undefined : inbox.id })}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13 }}>{channelEmoji(inbox.channel_type)}</Text>
+                    <Text style={[s.inboxChipText, { color: active ? colors.green : colors.textDim }]}>
+                      {inbox.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       <ConnectionStatus />
@@ -174,9 +258,7 @@ export default function ChatsScreen() {
         data={conversations}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={
-          conversations.length === 0 ? { flex: 1 } : s.listContent
-        }
+        contentContainerStyle={conversations.length === 0 ? { flex: 1 } : s.listContent}
         refreshControl={
           <RefreshControl
             refreshing={isSyncing}

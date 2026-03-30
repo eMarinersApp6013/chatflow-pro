@@ -42,9 +42,24 @@ export const API = {
   AGENTS: (accountId: number) =>
     `/api/v1/accounts/${accountId}/agents`,
 
+  // Assignments
+  CONVERSATION_ASSIGNMENTS: (accountId: number, conversationId: number) =>
+    `/api/v1/accounts/${accountId}/conversations/${conversationId}/assignments`,
+
+  // WhatsApp templates — per-inbox
+  WHATSAPP_TEMPLATES: (accountId: number, inboxId: number) =>
+    `/api/v1/accounts/${accountId}/inboxes/${inboxId}/whatsapp_templates`,
+
   // Reports
   REPORTS: (accountId: number) =>
     `/api/v1/accounts/${accountId}/reports`,
+  REPORTS_SUMMARY: (accountId: number) =>
+    `/api/v1/accounts/${accountId}/reports/summary`,
+  REPORTS_AGENTS: (accountId: number) =>
+    `/api/v1/accounts/${accountId}/reports/agents/conversations`,
+
+  // Profile availability
+  UPDATE_PROFILE: '/api/v1/profile',
 
   // WebSocket — ActionCable endpoint
   WS_CABLE: '/cable',
