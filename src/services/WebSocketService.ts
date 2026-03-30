@@ -77,12 +77,11 @@ class WebSocketService {
     this.socket.onclose = () => {
       this.isConnecting = false;
       this.emitConnection('reconnecting');
-      // Exponential back-off capped at 10s
-      const delay = Math.min(3000 + Math.random() * 2000, 10000);
+      // Reconnect every 5 seconds as per Phase 6 spec
       this.reconnectTimer = setTimeout(() => {
         this.emitConnection('connecting');
         this.connect(this._chatwootUrl, this._pubsubToken);
-      }, delay);
+      }, 5000);
     };
   }
 

@@ -1,10 +1,16 @@
 // MessageBubble — WhatsApp-style message bubble.
-// Handles: outgoing (green), incoming (surface), private note (yellow),
-// activity messages, reply context preview, image attachments, check marks.
+// Phase 6: Reanimated fade-in on mount, failed/queued message UI, tap-to-retry.
 
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { File, MapPin } from 'lucide-react-native';
+import { File, AlertCircle, Clock } from 'lucide-react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useUIStore } from '../../store/uiStore';
 import type MessageModel from '../../db/models/MessageModel';
 import type { ChatwootAttachment } from '../../types/chatwoot';
@@ -13,14 +19,14 @@ import CheckMarks from './CheckMarks';
 
 interface Props {
   message: MessageModel;
-  // When true this is the first consecutive message from the same sender
-  // → renders the bubble tail
+  // When true this is the first consecutive message from the same sender → renders bubble tail
   showTail?: boolean;
-  // Reply context from DB (resolved by parent)
+  // Reply context resolved by parent
   replyMessage?: { content: string; senderName: string } | null;
   onLongPress?: (message: MessageModel) => void;
-  // Called when the user taps an image attachment → open full-screen viewer
   onImagePress?: (uri: string) => void;
+  // Called when user taps "Tap to retry" on a failed message
+  onRetry?: (message: MessageModel) => void;
 }
 
 export default function MessageBubble({
@@ -29,23 +35,40 @@ export default function MessageBubble({
   replyMessage,
   onLongPress,
   onImagePress,
+  onRetry,
 }: Props) {
   const { colors } = useUIStore();
+
+  // ── Fade-in animation on mount ──────────────────────────────
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(8);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) });
+    translateY.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.quad) });
+  }, []);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
 
   const isOut = message.isOutgoing;
   const isNote = message.isPrivate;
   const isActivity = message.isActivity;
+  const isFailed = message.status === 'failed';
+  const isQueued = message.status === 'queued';
 
   // Activity messages (assignment, status change) — centred system text
   if (isActivity) {
     return (
-      <View style={styles.activityRow}>
+      <Animated.View style={[styles.activityRow, animStyle]}>
         <View style={[styles.activityPill, { backgroundColor: colors.surface2 }]}>
           <Text style={[styles.activityText, { color: colors.textDim }]}>
             {message.content ?? ''}
           </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   }
 
@@ -66,10 +89,11 @@ export default function MessageBubble({
   const hasText = !!(message.content?.trim());
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.wrapper,
         isOut ? styles.wrapperOut : styles.wrapperIn,
+        animStyle,
       ]}
     >
       {/* Note badge on left side */}
@@ -79,106 +103,133 @@ export default function MessageBubble({
         </View>
       )}
 
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onLongPress={() => onLongPress?.(message)}
-        style={[
-          styles.bubble,
-          { backgroundColor: bubbleBg },
-          borderRadius,
-          isNote && { borderWidth: 1, borderColor: colors.noteBorder },
-          isOut ? styles.bubbleOut : styles.bubbleIn,
-        ]}
-      >
-        {/* Reply context strip */}
-        {replyMessage && (
-          <View
-            style={[
-              styles.replyStrip,
-              {
-                backgroundColor: isOut
-                  ? 'rgba(0,0,0,0.15)'
-                  : colors.surface3,
-                borderLeftColor: colors.green,
-              },
-            ]}
-          >
-            <Text
-              style={[styles.replySender, { color: colors.green }]}
-              numberOfLines={1}
+      <View style={styles.bubbleColumn}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onLongPress={() => onLongPress?.(message)}
+          style={[
+            styles.bubble,
+            { backgroundColor: bubbleBg },
+            borderRadius,
+            isNote && { borderWidth: 1, borderColor: colors.noteBorder },
+            isOut ? styles.bubbleOut : styles.bubbleIn,
+            isFailed && { borderWidth: 1, borderColor: colors.danger + '66' },
+          ]}
+        >
+          {/* Reply context strip */}
+          {replyMessage && (
+            <View
+              style={[
+                styles.replyStrip,
+                {
+                  backgroundColor: isOut ? 'rgba(0,0,0,0.15)' : colors.surface3,
+                  borderLeftColor: colors.green,
+                },
+              ]}
             >
-              {replyMessage.senderName}
+              <Text
+                style={[styles.replySender, { color: colors.green }]}
+                numberOfLines={1}
+              >
+                {replyMessage.senderName}
+              </Text>
+              <Text
+                style={[styles.replyContent, { color: colors.textDim }]}
+                numberOfLines={2}
+              >
+                {replyMessage.content}
+              </Text>
+            </View>
+          )}
+
+          {/* Image attachments */}
+          {attachments
+            .filter((a) => a.file_type === 'image')
+            .map((att) => {
+              const uri = att.data_url || att.file_url;
+              return (
+                <TouchableOpacity
+                  key={att.id}
+                  onPress={() => onImagePress?.(uri)}
+                  activeOpacity={0.85}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={styles.attachmentImage}
+                    contentFit="cover"
+                    transition={200}
+                    placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+
+          {/* Non-image file attachments */}
+          {attachments
+            .filter((a) => a.file_type !== 'image' && a.file_type !== 'location')
+            .map((att) => (
+              <View
+                key={att.id}
+                style={[styles.fileRow, { backgroundColor: colors.surface3 }]}
+              >
+                <File color={colors.textDim} size={18} />
+                <Text
+                  style={[styles.fileName, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {att.file_url.split('/').pop() ?? 'Attachment'}
+                </Text>
+              </View>
+            ))}
+
+          {/* Message text */}
+          {hasText && (
+            <Text style={[styles.content, { color: colors.text }]}>
+              {message.content}
             </Text>
-            <Text
-              style={[styles.replyContent, { color: colors.textDim }]}
-              numberOfLines={2}
-            >
-              {replyMessage.content}
+          )}
+
+          {/* Timestamp + status */}
+          <View style={[styles.footer, isOut && styles.footerOut]}>
+            {isNote && (
+              <Text style={[styles.noteLabel, { color: colors.orange }]}>Note • </Text>
+            )}
+            {isQueued && (
+              <Clock size={12} color={colors.textDim2} />
+            )}
+            <Text style={[styles.time, { color: isOut ? 'rgba(255,255,255,0.65)' : colors.textDim2 }]}>
+              {formatTime(message.createdAt)}
+            </Text>
+            {isOut && !isNote && (
+              <CheckMarks status={message.status} pending={message.isPending} />
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* ⑦ Failed badge — "Tap to retry" */}
+        {isFailed && isOut && (
+          <TouchableOpacity
+            style={[styles.failedRow, { borderColor: colors.danger + '44' }]}
+            onPress={() => onRetry?.(message)}
+            activeOpacity={0.7}
+          >
+            <AlertCircle color={colors.danger} size={13} />
+            <Text style={[styles.failedText, { color: colors.danger }]}>
+              Failed — tap to retry
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* ⏳ Queued badge — will send when online */}
+        {isQueued && isOut && (
+          <View style={styles.queuedRow}>
+            <Clock size={12} color={colors.textDim2} />
+            <Text style={[styles.queuedText, { color: colors.textDim2 }]}>
+              Queued — will send when online
             </Text>
           </View>
         )}
-
-        {/* Image attachments — tappable to open full-screen viewer */}
-        {attachments
-          .filter((a) => a.file_type === 'image')
-          .map((att) => {
-            const uri = att.data_url || att.file_url;
-            return (
-              <TouchableOpacity
-                key={att.id}
-                onPress={() => onImagePress?.(uri)}
-                activeOpacity={0.85}
-              >
-                <Image
-                  source={{ uri }}
-                  style={styles.attachmentImage}
-                  contentFit="cover"
-                  transition={200}
-                />
-              </TouchableOpacity>
-            );
-          })}
-
-        {/* Non-image file attachments */}
-        {attachments
-          .filter((a) => a.file_type !== 'image' && a.file_type !== 'location')
-          .map((att) => (
-            <View
-              key={att.id}
-              style={[styles.fileRow, { backgroundColor: colors.surface3 }]}
-            >
-              <File color={colors.textDim} size={18} />
-              <Text
-                style={[styles.fileName, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {att.file_url.split('/').pop() ?? 'Attachment'}
-              </Text>
-            </View>
-          ))}
-
-        {/* Message text */}
-        {hasText && (
-          <Text style={[styles.content, { color: colors.text }]}>
-            {message.content}
-          </Text>
-        )}
-
-        {/* Timestamp + check marks */}
-        <View style={[styles.footer, isOut && styles.footerOut]}>
-          {isNote && (
-            <Text style={[styles.noteLabel, { color: colors.orange }]}>
-              Note •{' '}
-            </Text>
-          )}
-          <Text style={[styles.time, { color: isOut ? 'rgba(255,255,255,0.65)' : colors.textDim2 }]}>
-            {formatTime(message.createdAt)}
-          </Text>
-          {isOut && !isNote && (
-            <CheckMarks status={message.status} pending={message.isPending} />
-          )}
-        </View>
-      </TouchableOpacity>
+      </View>
 
       {/* Bubble tail */}
       {showTail && (
@@ -186,13 +237,11 @@ export default function MessageBubble({
           style={[
             styles.tail,
             isOut ? styles.tailOut : styles.tailIn,
-            {
-              borderBottomColor: bubbleBg,
-            },
+            { borderBottomColor: bubbleBg },
           ]}
         />
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -206,12 +255,12 @@ const styles = StyleSheet.create({
   wrapperOut: { justifyContent: 'flex-end' },
   wrapperIn: { justifyContent: 'flex-start' },
 
+  bubbleColumn: { flexDirection: 'column', maxWidth: '78%' },
+
   bubble: {
-    maxWidth: '78%',
     paddingHorizontal: 10,
     paddingTop: 6,
     paddingBottom: 4,
-    // Shadow on light mode
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
@@ -221,11 +270,7 @@ const styles = StyleSheet.create({
   bubbleOut: {},
   bubbleIn: {},
 
-  content: {
-    fontSize: 15,
-    lineHeight: 21,
-    flexShrink: 1,
-  },
+  content: { fontSize: 15, lineHeight: 21, flexShrink: 1 },
 
   footer: {
     flexDirection: 'row',
@@ -235,7 +280,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   footerOut: { justifyContent: 'flex-end' },
-
   time: { fontSize: 11 },
   noteLabel: { fontSize: 11, fontStyle: 'italic' },
 
@@ -251,52 +295,43 @@ const styles = StyleSheet.create({
   replyContent: { fontSize: 13, lineHeight: 17 },
 
   // Attachments
-  attachmentImage: {
-    width: 220,
-    height: 160,
-    borderRadius: 8,
-    marginBottom: 4,
-  },
+  attachmentImage: { width: 220, height: 160, borderRadius: 8, marginBottom: 4 },
   fileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 8, borderRadius: 8, marginBottom: 4,
   },
   fileName: { fontSize: 13, flex: 1 },
 
   // Activity messages
   activityRow: { alignItems: 'center', marginVertical: 6 },
-  activityPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 12,
-  },
+  activityPill: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 12 },
   activityText: { fontSize: 12, fontStyle: 'italic' },
 
   // Private note badge
   notePill: {
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 4,
-    alignSelf: 'flex-end',
-    marginBottom: 4,
+    paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4,
+    marginRight: 4, alignSelf: 'flex-end', marginBottom: 4,
   },
   notePillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 
-  // Bubble tail (triangle)
+  // Failed / Queued status badges
+  failedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 3, paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 6, borderWidth: 1, alignSelf: 'flex-end',
+  },
+  failedText: { fontSize: 11, fontWeight: '600' },
+  queuedRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 3, alignSelf: 'flex-end',
+  },
+  queuedText: { fontSize: 11 },
+
+  // Bubble tail
   tail: {
-    width: 0,
-    height: 0,
-    borderStyle: 'solid',
-    borderLeftWidth: 6,
-    borderRightWidth: 6,
-    borderBottomWidth: 10,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
+    width: 0, height: 0, borderStyle: 'solid',
+    borderLeftWidth: 6, borderRightWidth: 6, borderBottomWidth: 10,
+    borderLeftColor: 'transparent', borderRightColor: 'transparent',
     marginBottom: 0,
   },
   tailOut: { marginLeft: 2 },

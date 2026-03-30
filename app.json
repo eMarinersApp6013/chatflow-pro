@@ -14,7 +14,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "tech.nodesurge.chatflowpro",
+      "bundleIdentifier": "com.nodesurge.chatflowpro",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Used for voice search in the catalog",
         "NSPhotoLibraryUsageDescription": "Used for photo search and sending images",
@@ -26,7 +26,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b141a"
       },
-      "package": "tech.nodesurge.chatflowpro",
+      "package": "com.nodesurge.chatflowpro",
       "permissions": [
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",

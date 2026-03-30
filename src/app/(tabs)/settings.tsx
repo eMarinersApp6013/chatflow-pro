@@ -361,7 +361,7 @@ export default function SettingsScreen() {
             <View style={[s.row, s.rowLast]}>
               <Info color={colors.textDim} size={20} />
               <Text style={s.rowLabel}>Version</Text>
-              <Text style={s.rowValue}>1.0.0 (Phase 4)</Text>
+              <Text style={s.rowValue}>1.0.0 (Phase 6)</Text>
             </View>
           </View>
         </View>

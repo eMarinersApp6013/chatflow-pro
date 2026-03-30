@@ -1,6 +1,8 @@
 // Root layout — sets up QueryClient, database provider, and handles auth routing.
+// Phase 6: added Toast overlay for non-blocking notifications.
 
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -10,6 +12,7 @@ import { database } from '../db/database';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { CONFIG } from '../constants/config';
+import ToastContainer from '../components/common/Toast';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,23 +39,27 @@ export default function RootLayout() {
       <DatabaseProvider database={database}>
         <QueryClientProvider client={queryClient}>
           <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)/login" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="chat/[id]"
-              options={{
-                animation: 'slide_from_right',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen name="contact/[id]" options={{ animation: 'slide_from_right', headerShown: false }} />
-            <Stack.Screen name="search" options={{ animation: 'fade', headerShown: false }} />
-            <Stack.Screen name="labels" options={{ animation: 'slide_from_right', headerShown: false }} />
-            <Stack.Screen name="templates" options={{ animation: 'slide_from_right', headerShown: false }} />
-            <Stack.Screen name="starred" options={{ animation: 'slide_from_right', headerShown: false }} />
-          </Stack>
+          <View style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)/login" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="chat/[id]"
+                options={{
+                  animation: 'slide_from_right',
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen name="contact/[id]" options={{ animation: 'slide_from_right', headerShown: false }} />
+              <Stack.Screen name="search" options={{ animation: 'fade', headerShown: false }} />
+              <Stack.Screen name="labels" options={{ animation: 'slide_from_right', headerShown: false }} />
+              <Stack.Screen name="templates" options={{ animation: 'slide_from_right', headerShown: false }} />
+              <Stack.Screen name="starred" options={{ animation: 'slide_from_right', headerShown: false }} />
+            </Stack>
+            {/* Global toast overlay — appears above all screens */}
+            <ToastContainer />
+          </View>
         </QueryClientProvider>
       </DatabaseProvider>
     </GestureHandlerRootView>
