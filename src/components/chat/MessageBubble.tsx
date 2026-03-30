@@ -19,6 +19,8 @@ interface Props {
   // Reply context from DB (resolved by parent)
   replyMessage?: { content: string; senderName: string } | null;
   onLongPress?: (message: MessageModel) => void;
+  // Called when the user taps an image attachment → open full-screen viewer
+  onImagePress?: (uri: string) => void;
 }
 
 export default function MessageBubble({
@@ -26,6 +28,7 @@ export default function MessageBubble({
   showTail = false,
   replyMessage,
   onLongPress,
+  onImagePress,
 }: Props) {
   const { colors } = useUIStore();
 
@@ -115,18 +118,26 @@ export default function MessageBubble({
           </View>
         )}
 
-        {/* Image attachments */}
+        {/* Image attachments — tappable to open full-screen viewer */}
         {attachments
           .filter((a) => a.file_type === 'image')
-          .map((att) => (
-            <Image
-              key={att.id}
-              source={{ uri: att.data_url || att.file_url }}
-              style={styles.attachmentImage}
-              contentFit="cover"
-              transition={200}
-            />
-          ))}
+          .map((att) => {
+            const uri = att.data_url || att.file_url;
+            return (
+              <TouchableOpacity
+                key={att.id}
+                onPress={() => onImagePress?.(uri)}
+                activeOpacity={0.85}
+              >
+                <Image
+                  source={{ uri }}
+                  style={styles.attachmentImage}
+                  contentFit="cover"
+                  transition={200}
+                />
+              </TouchableOpacity>
+            );
+          })}
 
         {/* Non-image file attachments */}
         {attachments

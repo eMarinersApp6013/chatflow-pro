@@ -1,6 +1,8 @@
 // Chat screen — full WhatsApp-style conversation view.
 // Phase 2: message bubbles, optimistic send, reply/note toggle,
-// WebSocket real-time updates, typing indicators, connection status.
+//           WebSocket real-time updates, typing indicators, connection status.
+// Phase 3: LongPressMenu, SwipeReply, AttachmentDrawer, ImageViewer,
+//           label chips in header, star/delete actions.
 
 import {
   useCallback,
@@ -17,6 +19,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   ListRenderItemInfo,
+  ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ArrowLeft, Phone, MoreVertical } from 'lucide-react-native';
@@ -28,6 +31,7 @@ import { useMessages } from '../../hooks/useMessages';
 import { useConversation } from '../../hooks/useConversation';
 import { useTyping } from '../../hooks/useTyping';
 import { wsService } from '../../services/WebSocketService';
+import { chatService } from '../../services/ChatwootAdapter';
 import { WS_EVENTS } from '../../constants/api';
 
 import Avatar from '../../components/common/Avatar';
@@ -37,10 +41,15 @@ import MessageInput from '../../components/chat/MessageInput';
 import TypingIndicator from '../../components/chat/TypingIndicator';
 import DateSeparator from '../../components/chat/DateSeparator';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import LongPressMenu from '../../components/chat/LongPressMenu';
+import SwipeReply from '../../components/chat/SwipeReply';
+import AttachmentDrawer from '../../components/chat/AttachmentDrawer';
+import ImageViewer from '../../components/chat/ImageViewer';
 
 import type MessageModel from '../../db/models/MessageModel';
 import type { ReplyContext, MessageMode } from '../../types/app';
 import type { ChatwootWebSocketEvent } from '../../types/chatwoot';
+import type { PickedFile } from '../../components/chat/AttachmentDrawer';
 import { formatDate } from '../../utils/formatters';
 import { database, messagesCollection } from '../../db/database';
 import { Q } from '@nozbe/watermelondb';
@@ -63,6 +72,13 @@ export default function ChatScreen() {
 
   const [mode, setMode] = useState<MessageMode>('reply');
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
+
+  // Phase 3 state
+  const [menuMessage, setMenuMessage] = useState<MessageModel | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [attachmentDrawerVisible, setAttachmentDrawerVisible] = useState(false);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
+  const [viewerVisible, setViewerVisible] = useState(false);
 
   const listRef = useRef<FlatList>(null);
   const prevMessageCount = useRef(0);
@@ -89,7 +105,6 @@ export default function ChatScreen() {
         const convId = payload?.conversation_id as number | undefined;
         if (convId !== remoteId) return;
 
-        // Upsert the new message into WatermelonDB so the live query picks it up
         const msg = payload as {
           id: number;
           message_type: number;
@@ -101,7 +116,6 @@ export default function ChatScreen() {
         };
 
         await database.write(async () => {
-          // Skip if already in DB (avoid duplicate from optimistic write)
           const existing = await messagesCollection
             .query(Q.where('remote_id', msg.id))
             .fetchCount();
@@ -130,7 +144,7 @@ export default function ChatScreen() {
     return () => unsub();
   }, [remoteId]);
 
-  // ── Send handler ───────────────────────────────────────────
+  // ── Send text handler ──────────────────────────────────────
   const handleSend = useCallback(
     (content: string) => {
       sendMessage(content, mode);
@@ -139,8 +153,32 @@ export default function ChatScreen() {
     [mode, sendMessage]
   );
 
-  // ── Long press → set reply context ────────────────────────
+  // ── Attachment picked → upload via chatService ─────────────
+  const handleFilePicked = useCallback(
+    async (file: PickedFile) => {
+      try {
+        await chatService.sendAttachment(
+          remoteId,
+          file.uri,
+          file.name,
+          file.mimeType,
+          mode === 'note'
+        );
+      } catch {
+        // Silently fail — user can retry
+      }
+    },
+    [remoteId, mode]
+  );
+
+  // ── Long press → open context menu ────────────────────────
   const handleLongPress = useCallback((msg: MessageModel) => {
+    setMenuMessage(msg);
+    setMenuVisible(true);
+  }, []);
+
+  // ── Swipe-right → set reply context ───────────────────────
+  const handleSwipeReply = useCallback((msg: MessageModel) => {
     setReplyContext({
       messageId: msg.remoteId,
       content: msg.content ?? '',
@@ -148,7 +186,44 @@ export default function ChatScreen() {
     });
   }, []);
 
-  // ── Determine if tail should show (first of a run) ─────────
+  // ── Menu: Reply ────────────────────────────────────────────
+  const handleMenuReply = useCallback((msg: MessageModel) => {
+    setReplyContext({
+      messageId: msg.remoteId,
+      content: msg.content ?? '',
+      senderName: msg.senderName ?? 'Unknown',
+    });
+  }, []);
+
+  // ── Menu: Star / Unstar ────────────────────────────────────
+  const handleMenuStar = useCallback(async (msg: MessageModel) => {
+    await database.write(async () => {
+      await msg.update((m) => { m.isStarred = !m.isStarred; });
+    });
+  }, []);
+
+  // ── Menu: Delete ───────────────────────────────────────────
+  const handleMenuDelete = useCallback(
+    async (msg: MessageModel) => {
+      try {
+        await chatService.deleteMessage(remoteId, msg.remoteId);
+        await database.write(async () => {
+          await msg.destroyPermanently();
+        });
+      } catch {
+        // Silently fail
+      }
+    },
+    [remoteId]
+  );
+
+  // ── Image viewer ───────────────────────────────────────────
+  const handleImagePress = useCallback((uri: string) => {
+    setViewerUri(uri);
+    setViewerVisible(true);
+  }, []);
+
+  // ── Determine if tail should show (last of a run) ─────────
   const shouldShowTail = useCallback(
     (index: number): boolean => {
       if (index === messages.length - 1) return true;
@@ -165,9 +240,7 @@ export default function ChatScreen() {
       if (index === 0) return true;
       const prev = messages[index - 1];
       const curr = messages[index];
-      const prevDate = formatDate(prev.createdAt);
-      const currDate = formatDate(curr.createdAt);
-      return prevDate !== currDate;
+      return formatDate(prev.createdAt) !== formatDate(curr.createdAt);
     },
     [messages]
   );
@@ -181,15 +254,21 @@ export default function ChatScreen() {
       return (
         <View>
           {showDate && <DateSeparator timestamp={item.createdAt} />}
-          <MessageBubble
-            message={item}
-            showTail={showTail}
-            onLongPress={handleLongPress}
-          />
+          <SwipeReply
+            onReply={() => handleSwipeReply(item)}
+            enabled={!item.isActivity}
+          >
+            <MessageBubble
+              message={item}
+              showTail={showTail}
+              onLongPress={handleLongPress}
+              onImagePress={handleImagePress}
+            />
+          </SwipeReply>
         </View>
       );
     },
-    [shouldShowDate, shouldShowTail, handleLongPress]
+    [shouldShowDate, shouldShowTail, handleLongPress, handleSwipeReply, handleImagePress]
   );
 
   const keyExtractor = (item: MessageModel) => item.id;
@@ -201,6 +280,9 @@ export default function ChatScreen() {
       : conversation?.status === 'pending'
       ? '⏳ Pending'
       : null;
+
+  // ── Conversation labels ────────────────────────────────────
+  const convLabels: string[] = conversation?.labels ?? [];
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
@@ -216,18 +298,26 @@ export default function ChatScreen() {
     backBtn: { padding: 6 },
     headerAvatar: { marginRight: 2 },
     headerInfo: { flex: 1 },
-    headerName: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#ffffff',
-    },
-    headerSub: {
-      fontSize: 12,
-      color: 'rgba(255,255,255,0.72)',
-      marginTop: 1,
-    },
+    headerName: { fontSize: 16, fontWeight: '600', color: '#ffffff' },
+    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.72)', marginTop: 1 },
     headerActions: { flexDirection: 'row', gap: 4 },
     headerBtn: { padding: 6 },
+    labelChips: {
+      flexDirection: 'row',
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      gap: 6,
+      backgroundColor: colors.surface2,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    labelChip: {
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      backgroundColor: colors.green + '22',
+    },
+    labelChipText: { fontSize: 11, color: colors.green, fontWeight: '600' },
     resolvedBanner: {
       backgroundColor: colors.surface2,
       paddingVertical: 6,
@@ -239,14 +329,8 @@ export default function ChatScreen() {
       borderBottomColor: colors.border,
     },
     resolvedText: { fontSize: 13, color: colors.textDim, fontStyle: 'italic' },
-    chatBackground: {
-      flex: 1,
-      backgroundColor: colors.bg,
-    },
-    listContent: {
-      paddingTop: 8,
-      paddingBottom: 4,
-    },
+    chatBackground: { flex: 1, backgroundColor: colors.bg },
+    listContent: { paddingTop: 8, paddingBottom: 4 },
   });
 
   return (
@@ -299,6 +383,21 @@ export default function ChatScreen() {
         </View>
       </View>
 
+      {/* ── Label chips (if any) ── */}
+      {convLabels.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.labelChips}
+        >
+          {convLabels.map((lbl) => (
+            <View key={lbl} style={s.labelChip}>
+              <Text style={s.labelChipText}>{lbl}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
       {/* ── Connection status banner ── */}
       <ConnectionStatus />
 
@@ -320,13 +419,11 @@ export default function ChatScreen() {
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             contentContainerStyle={s.listContent}
-            // Show load-more when scrolled to top
             onScrollBeginDrag={() => {
               if (messages.length >= 30 && messages[0]) {
                 loadMore(messages[0].remoteId);
               }
             }}
-            // Performance tuning
             windowSize={12}
             maxToRenderPerBatch={20}
             updateCellsBatchingPeriod={25}
@@ -339,9 +436,7 @@ export default function ChatScreen() {
 
           {/* ── Typing indicator ── */}
           {typingUsers.length > 0 && (
-            <TypingIndicator
-              names={typingUsers.map((u) => u.userName)}
-            />
+            <TypingIndicator names={typingUsers.map((u) => u.userName)} />
           )}
         </View>
       )}
@@ -353,6 +448,29 @@ export default function ChatScreen() {
         onSend={handleSend}
         onModeChange={setMode}
         onClearReply={() => setReplyContext(null)}
+        onAttachmentPress={() => setAttachmentDrawerVisible(true)}
+      />
+
+      {/* ── Phase 3 overlays ── */}
+      <LongPressMenu
+        message={menuMessage}
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onReply={handleMenuReply}
+        onStar={handleMenuStar}
+        onDelete={handleMenuDelete}
+      />
+
+      <AttachmentDrawer
+        visible={attachmentDrawerVisible}
+        onClose={() => setAttachmentDrawerVisible(false)}
+        onFilePicked={handleFilePicked}
+      />
+
+      <ImageViewer
+        uri={viewerUri}
+        visible={viewerVisible}
+        onClose={() => setViewerVisible(false)}
       />
     </KeyboardAvoidingView>
   );
