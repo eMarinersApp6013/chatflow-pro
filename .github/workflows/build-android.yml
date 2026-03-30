@@ -36,7 +36,7 @@ jobs:
 
       # Link this repo to an EAS project (creates one if it doesn't exist)
       - name: Initialize EAS project
-        run: eas init --non-interactive
+        run: eas init --non-interactive --force
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
