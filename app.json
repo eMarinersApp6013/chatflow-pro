@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "ChatFlow Pro",
+    "slug": "chatflow-pro",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b141a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "tech.nodesurge.chatflowpro",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Used for voice search in the catalog",
+        "NSPhotoLibraryUsageDescription": "Used for photo search and sending images",
+        "NSCameraUsageDescription": "Used for photo search and sending images"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b141a"
+      },
+      "package": "tech.nodesurge.chatflowpro",
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "root": "src/app"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Used for photo search and sending images",
+          "cameraPermission": "Used for photo search"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "chatflow-pro"
+  }
+}
