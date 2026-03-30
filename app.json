@@ -28,6 +28,8 @@
         "backgroundColor": "#0b141a"
       },
       "package": "com.nodesurge.chatflowpro",
+      "minSdkVersion": 24,
+      "newArchEnabled": false,
       "permissions": [
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
