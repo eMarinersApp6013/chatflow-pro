@@ -9,8 +9,15 @@ import type {
   ChatwootMessage,
   ChatwootContact,
   ChatwootLabel,
+  ChatwootAgent,
+  ChatwootInbox,
   ChatwootSendMessagePayload,
   ConversationStatus,
+  ChatwootTeam,
+  ChatwootTemplate,
+  ChatwootReportSummary,
+  ChatwootAgentReport,
+  AvailabilityStatus,
 } from '../types/chatwoot';
 import type { ConversationFilters } from '../types/app';
 
@@ -62,6 +69,7 @@ export class ChatwootAdapter extends ChatService {
       params.set('assignee_type', filters.assigneeType);
     }
     filters.labels?.forEach((l) => params.append('labels[]', l));
+    if (filters.inboxId) params.set('inbox_id', String(filters.inboxId));
     const data = await this.request<{ data: { payload: ChatwootConversation[] } }>(
       `${API.CONVERSATIONS(this.accountId)}?${params.toString()}`
     );
@@ -176,6 +184,87 @@ export class ChatwootAdapter extends ChatService {
       payload: Array<{ id: number; short_code: string; content: string }>;
     }>(`${API.CANNED_RESPONSES(this.accountId)}?${params.toString()}`);
     return data.payload;
+  }
+
+  // ── Phase 4 ───────────────────────────────────────────────
+
+  async getAgents(): Promise<ChatwootAgent[]> {
+    const data = await this.request<ChatwootAgent[]>(API.AGENTS(this.accountId));
+    return data;
+  }
+
+  async getTeams(): Promise<ChatwootTeam[]> {
+    const data = await this.request<ChatwootTeam[]>(API.TEAMS(this.accountId));
+    return data;
+  }
+
+  async getInboxes(): Promise<ChatwootInbox[]> {
+    const data = await this.request<{ payload: ChatwootInbox[] }>(API.INBOXES(this.accountId));
+    return data.payload;
+  }
+
+  async assignConversation(conversationId: number, agentId: number): Promise<void> {
+    await this.request<void>(
+      API.CONVERSATION_ASSIGNMENTS(this.accountId, conversationId),
+      { method: 'POST', body: JSON.stringify({ assignee_id: agentId || null }) }
+    );
+  }
+
+  async assignTeam(conversationId: number, teamId: number): Promise<void> {
+    await this.request<void>(
+      API.CONVERSATION_ASSIGNMENTS(this.accountId, conversationId),
+      { method: 'POST', body: JSON.stringify({ team_id: teamId || null }) }
+    );
+  }
+
+  async getTemplates(inboxId: number): Promise<ChatwootTemplate[]> {
+    try {
+      const data = await this.request<ChatwootTemplate[]>(
+        API.WHATSAPP_TEMPLATES(this.accountId, inboxId)
+      );
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
+  async getReportsSummary(): Promise<ChatwootReportSummary> {
+    // Uses a 30-day window by default
+    const since = Math.floor((Date.now() - 30 * 86_400_000) / 1000);
+    const until = Math.floor(Date.now() / 1000);
+    const params = new URLSearchParams({ since: String(since), until: String(until) });
+    try {
+      return await this.request<ChatwootReportSummary>(
+        `${API.REPORTS_SUMMARY(this.accountId)}?${params.toString()}`
+      );
+    } catch {
+      return {
+        account_conversations: 0,
+        incoming_messages_count: 0,
+        outgoing_messages_count: 0,
+        avg_first_response_time: 0,
+        avg_resolution_time: 0,
+        resolutions_count: 0,
+      };
+    }
+  }
+
+  async getAgentReports(): Promise<ChatwootAgentReport[]> {
+    try {
+      const data = await this.request<ChatwootAgentReport[]>(
+        API.REPORTS_AGENTS(this.accountId)
+      );
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
+  async updateAvailability(status: AvailabilityStatus): Promise<void> {
+    await this.request<void>(API.UPDATE_PROFILE, {
+      method: 'PUT',
+      body: JSON.stringify({ availability: status }),
+    });
   }
 }
 

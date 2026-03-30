@@ -7,8 +7,15 @@ import type {
   ChatwootMessage,
   ChatwootContact,
   ChatwootLabel,
+  ChatwootAgent,
+  ChatwootInbox,
   ChatwootSendMessagePayload,
   ConversationStatus,
+  ChatwootTeam,
+  ChatwootTemplate,
+  ChatwootReportSummary,
+  ChatwootAgentReport,
+  AvailabilityStatus,
 } from '../types/chatwoot';
 import type { ConversationFilters } from '../types/app';
 
@@ -63,4 +70,27 @@ export abstract class ChatService {
   abstract getCannedResponses(
     query?: string
   ): Promise<Array<{ id: number; short_code: string; content: string }>>;
+
+  // ── Phase 4 additions ──────────────────────────────────────
+
+  abstract getAgents(): Promise<ChatwootAgent[]>;
+
+  abstract getTeams(): Promise<ChatwootTeam[]>;
+
+  abstract getInboxes(): Promise<ChatwootInbox[]>;
+
+  // Assign conversation to an agent (agentId=0 means unassign)
+  abstract assignConversation(conversationId: number, agentId: number): Promise<void>;
+
+  // Assign conversation to a team (teamId=0 means unassign)
+  abstract assignTeam(conversationId: number, teamId: number): Promise<void>;
+
+  abstract getTemplates(inboxId: number): Promise<ChatwootTemplate[]>;
+
+  abstract getReportsSummary(): Promise<ChatwootReportSummary>;
+
+  abstract getAgentReports(): Promise<ChatwootAgentReport[]>;
+
+  // Update the current agent's availability status
+  abstract updateAvailability(status: AvailabilityStatus): Promise<void>;
 }

@@ -130,3 +130,47 @@ export interface ChatwootWebSocketEvent {
   type: string;
   data: Record<string, unknown>;
 }
+
+export interface ChatwootTeam {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+// ChatwootInbox is already declared above (ChatwootInbox interface).
+// Re-exporting a richer form here for Phase 4.
+
+export interface ChatwootTemplateComponent {
+  type: 'HEADER' | 'BODY' | 'FOOTER' | 'BUTTONS';
+  text?: string;
+  format?: string;
+  buttons?: Array<{ type: string; text: string; url?: string; phone_number?: string }>;
+}
+
+export interface ChatwootTemplate {
+  id: number;
+  name: string;
+  category: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+  language: string;
+  status: 'approved' | 'pending' | 'rejected';
+  components: ChatwootTemplateComponent[];
+}
+
+export interface ChatwootReportSummary {
+  account_conversations: number;
+  incoming_messages_count: number;
+  outgoing_messages_count: number;
+  avg_first_response_time: number;
+  avg_resolution_time: number;
+  resolutions_count: number;
+}
+
+export interface ChatwootAgentReport {
+  id: number;
+  name: string;
+  email: string;
+  open_conversations_count: number;
+  resolved_conversations_count: number;
+}
+
+export type AvailabilityStatus = 'online' | 'busy' | 'offline';
