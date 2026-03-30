@@ -1,6 +1,7 @@
-// Chats tab — conversation list with filter chips and real-time sync.
+// Chats tab — conversation list with status + assignee filter chips.
+// Real-time via WatermelonDB observe() + background API sync.
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,29 +10,50 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Platform,
+  ListRenderItemInfo,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Search, Plus } from 'lucide-react-native';
+import { Search } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
+import { useConnectionStore } from '../../store/connectionStore';
 import { useConversations } from '../../hooks/useConversations';
+import { wsService } from '../../services/WebSocketService';
+
 import ConversationCard from '../../components/conversations/ConversationCard';
 import FilterChips from '../../components/conversations/FilterChips';
 import EmptyState from '../../components/common/EmptyState';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
-import ConversationModel from '../../db/models/ConversationModel';
-import type { StatusFilter } from '../../types/app';
 
-const STATUS_FILTERS: { label: string; value: StatusFilter }[] = [
+import ConversationModel from '../../db/models/ConversationModel';
+import type { StatusFilter, FilterTab } from '../../types/app';
+
+const STATUS_OPTIONS: { label: string; value: StatusFilter }[] = [
   { label: 'Open', value: 'open' },
   { label: 'Resolved', value: 'resolved' },
   { label: 'Pending', value: 'pending' },
 ];
 
+const ASSIGNEE_OPTIONS: { label: string; value: FilterTab }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Mine', value: 'mine' },
+  { label: 'Unassigned', value: 'unassigned' },
+];
+
 export default function ChatsScreen() {
   const { colors, filters, setFilters } = useUIStore();
   const { credentials } = useAuthStore();
+  const { setConnectionState } = useConnectionStore();
   const { conversations, isSyncing, syncError, refetch } = useConversations();
+  const insets = useSafeAreaInsets();
+
+  // Wire WebSocket connection state → store so ConnectionStatus banner updates
+  useEffect(() => {
+    return wsService.onConnectionChange(setConnectionState);
+  }, []);
 
   const handleConversationPress = useCallback((conv: ConversationModel) => {
     router.push(`/chat/${conv.remoteId}`);
@@ -43,40 +65,49 @@ export default function ChatsScreen() {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingTop: 52,
+      paddingTop: Platform.OS === 'ios' ? insets.top : 12,
       paddingBottom: 12,
       backgroundColor: colors.headerBg,
     },
-    headerTitle: { flex: 1, fontSize: 20, fontWeight: '700', color: '#ffffff' },
-    headerBtn: { padding: 4, marginLeft: 12 },
-    agentName: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-    filterRow: {
-      paddingVertical: 8,
-      paddingHorizontal: 8,
+    headerLeft: { flex: 1 },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
+    agentName: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 1 },
+    headerBtn: { padding: 6, marginLeft: 6 },
+
+    filterSection: {
       backgroundColor: colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+      paddingBottom: 8,
     },
+    filterRow: { paddingTop: 8, paddingHorizontal: 8 },
+    filterLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textDim2,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      paddingHorizontal: 10,
+      paddingTop: 6,
+      paddingBottom: 2,
+    },
+
     listContent: { paddingBottom: 16 },
-    syncingBar: {
+    syncBar: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: colors.greenDim,
       paddingHorizontal: 16,
-      paddingVertical: 8,
+      paddingVertical: 6,
       gap: 8,
     },
-    syncingText: { color: colors.green, fontSize: 13 },
-    errorBar: {
-      backgroundColor: '#3d1a1a',
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-    },
+    syncText: { color: colors.green, fontSize: 13 },
+    errorBar: { backgroundColor: '#3d1a1a', paddingHorizontal: 16, paddingVertical: 6 },
     errorText: { color: colors.danger, fontSize: 13 },
   });
 
   const renderItem = useCallback(
-    ({ item }: { item: ConversationModel }) => (
+    ({ item }: ListRenderItemInfo<ConversationModel>) => (
       <ConversationCard
         conversation={item}
         onPress={() => handleConversationPress(item)}
@@ -89,9 +120,9 @@ export default function ChatsScreen() {
 
   return (
     <View style={s.container}>
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={s.header}>
-        <View style={{ flex: 1 }}>
+        <View style={s.headerLeft}>
           <Text style={s.headerTitle}>ChatFlow Pro</Text>
           {credentials && (
             <Text style={s.agentName}>{credentials.userName}</Text>
@@ -102,22 +133,34 @@ export default function ChatsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Status filter chips */}
-      <View style={s.filterRow}>
-        <FilterChips
-          options={STATUS_FILTERS}
-          selected={filters.status}
-          onSelect={(value) => setFilters({ status: value as StatusFilter })}
-        />
+      {/* ── Filters ── */}
+      <View style={s.filterSection}>
+        {/* Status row */}
+        <View style={s.filterRow}>
+          <FilterChips
+            options={STATUS_OPTIONS}
+            selected={filters.status}
+            onSelect={(v) => setFilters({ status: v as StatusFilter })}
+          />
+        </View>
+        {/* Assignee row */}
+        <View style={s.filterRow}>
+          <FilterChips
+            options={ASSIGNEE_OPTIONS}
+            selected={filters.assigneeType}
+            onSelect={(v) => setFilters({ assigneeType: v as FilterTab })}
+            small
+          />
+        </View>
       </View>
 
       <ConnectionStatus />
 
-      {/* Sync indicators */}
+      {/* ── Sync bars ── */}
       {isSyncing && conversations.length === 0 && (
-        <View style={s.syncingBar}>
+        <View style={s.syncBar}>
           <ActivityIndicator color={colors.green} size="small" />
-          <Text style={s.syncingText}>Syncing conversations…</Text>
+          <Text style={s.syncText}>Syncing conversations…</Text>
         </View>
       )}
       {syncError && (
@@ -126,12 +169,14 @@ export default function ChatsScreen() {
         </View>
       )}
 
-      {/* Conversation list */}
+      {/* ── List ── */}
       <FlatList
-        data={conversations as ConversationModel[]}
+        data={conversations}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
-        contentContainerStyle={conversations.length === 0 ? { flex: 1 } : s.listContent}
+        contentContainerStyle={
+          conversations.length === 0 ? { flex: 1 } : s.listContent
+        }
         refreshControl={
           <RefreshControl
             refreshing={isSyncing}
@@ -144,16 +189,16 @@ export default function ChatsScreen() {
           !isSyncing ? (
             <EmptyState
               icon="message-circle"
-              title="No conversations yet"
+              title="No conversations"
               description="Your Chatwoot conversations will appear here after syncing."
             />
           ) : null
         }
-        // Virtualization — only render visible items for performance
         windowSize={10}
         removeClippedSubviews
         maxToRenderPerBatch={15}
         updateCellsBatchingPeriod={30}
+        initialNumToRender={20}
       />
     </View>
   );

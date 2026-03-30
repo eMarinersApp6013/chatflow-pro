@@ -1,10 +1,13 @@
-// ConversationCard — WhatsApp-style row in the conversation list.
+// ConversationCard — WhatsApp-style conversation row.
+// Shows: avatar, contact name, last message preview, timestamp,
+// unread badge, label dots, and inbox channel icon.
 
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useUIStore } from '../../store/uiStore';
 import Avatar from '../common/Avatar';
 import UnreadBadge from './UnreadBadge';
 import LabelDot from '../common/LabelDot';
+import InboxIcon from './InboxIcon';
 import { formatTime, truncateText } from '../../utils/formatters';
 import type ConversationModel from '../../db/models/ConversationModel';
 
@@ -15,60 +18,71 @@ interface Props {
 
 export default function ConversationCard({ conversation, onPress }: Props) {
   const { colors } = useUIStore();
+  const labels = conversation.labels;
+  const hasUnread = conversation.unreadCount > 0;
+  const preview = conversation.lastMessageContent
+    ? truncateText(conversation.lastMessageContent, 58)
+    : 'Tap to open conversation';
 
   const s = StyleSheet.create({
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
       backgroundColor: colors.bg,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    avatar: { marginRight: 12 },
-    content: { flex: 1, minWidth: 0 },
-    topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    name: { fontSize: 16, fontWeight: '600', color: colors.text, flex: 1, marginRight: 8 },
+    content: { flex: 1, minWidth: 0, marginLeft: 12 },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 3,
+    },
+    nameRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 8 },
+    name: { fontSize: 15.5, fontWeight: '600', color: colors.text, flexShrink: 1 },
+    timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     time: { fontSize: 12, color: colors.textDim2 },
-    bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 },
+    bottomRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
     preview: { fontSize: 14, color: colors.textDim, flex: 1, marginRight: 8 },
-    previewBold: { color: colors.text },
-    labelsRow: { flexDirection: 'row', gap: 4, marginTop: 4 },
-    rightCol: { alignItems: 'flex-end', gap: 4 },
+    previewUnread: { color: colors.text, fontWeight: '500' },
+    labelsRow: { flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' },
   });
 
-  const labels = conversation.labels;
-  const hasUnread = conversation.unreadCount > 0;
-  const preview = conversation.lastMessageContent
-    ? truncateText(conversation.lastMessageContent, 55)
-    : 'No messages yet';
-
   return (
-    <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.7}>
-      <View style={s.avatar}>
-        <Avatar
-          name={conversation.contactName}
-          uri={conversation.contactAvatar ?? undefined}
-          size={48}
-        />
-      </View>
+    <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.65}>
+      <Avatar
+        name={conversation.contactName}
+        uri={conversation.contactAvatar ?? undefined}
+        size={50}
+      />
 
       <View style={s.content}>
         <View style={s.topRow}>
-          <Text style={s.name} numberOfLines={1}>
-            {conversation.contactName}
-          </Text>
-          <Text style={s.time}>
-            {conversation.lastMessageAt
-              ? formatTime(conversation.lastMessageAt)
-              : ''}
-          </Text>
+          <View style={s.nameRow}>
+            <InboxIcon channel={conversation.channel ?? ''} size={14} />
+            <Text style={s.name} numberOfLines={1}>
+              {conversation.contactName}
+            </Text>
+          </View>
+          <View style={s.timeRow}>
+            <Text style={s.time}>
+              {conversation.lastMessageAt
+                ? formatTime(conversation.lastMessageAt)
+                : ''}
+            </Text>
+          </View>
         </View>
 
         <View style={s.bottomRow}>
           <Text
-            style={[s.preview, hasUnread && s.previewBold]}
+            style={[s.preview, hasUnread && s.previewUnread]}
             numberOfLines={1}
           >
             {preview}
