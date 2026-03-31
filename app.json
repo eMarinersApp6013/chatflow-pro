@@ -51,8 +51,7 @@
           "photosPermission": "Used for photo search and sending images",
           "cameraPermission": "Used for photo search"
         }
-      ],
-      "@nozbe/watermelondb/expo-plugin"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
