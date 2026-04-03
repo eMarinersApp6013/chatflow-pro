@@ -1,13 +1,46 @@
-import { database, conversationsCollection, contactsCollection, labelsCollection, productsCollection } from './database';
-import type { ChatwootConversation, ChatwootContact, ChatwootLabel } from '../types/chatwoot';
+import { Q } from '@nozbe/watermelondb';
+import { database, conversationsCollection, productsCollection } from './database';
+import type { ChatwootConversation } from '../types/chatwoot';
 import type { Product } from '../types/catalog';
 import { demoProducts } from '../data/demoProducts';
 
-// Write conversations from Chatwoot API response into WatermelonDB
-export async function syncConversations(conversations: ChatwootConversation[]): Promise<void> {
+// Upsert (update if exists, create if not) conversations during sync.
+// Reads are done BEFORE the write block — WatermelonDB does not support
+// nested async reads inside database.write(). The query below fetches only
+// the rows we need in one pass (O(n)) instead of fetching all rows per
+// conversation (O(n²)).
+export async function upsertConversations(conversations: ChatwootConversation[]): Promise<void> {
+  if (conversations.length === 0) return;
+
+  const remoteIds = conversations.map((c) => c.id);
+
+  // Fetch only the existing records that match incoming remote IDs — one query
+  const existingRecords = await conversationsCollection
+    .query(Q.where('remote_id', Q.oneOf(remoteIds)))
+    .fetch();
+
+  const existingMap = new Map(existingRecords.map((r) => [r.remoteId, r]));
+  const now = Date.now();
+
   await database.write(async () => {
     const ops = conversations.map((conv) => {
+      const existing = existingMap.get(conv.id);
       const meta = conv.meta;
+      const lastMsg = conv.messages?.[conv.messages.length - 1];
+
+      if (existing) {
+        return existing.prepareUpdate((record) => {
+          record.status = conv.status;
+          record.unreadCount = conv.unread_count;
+          record.lastActivityAt = conv.last_activity_at;
+          record.labelsJson = JSON.stringify(conv.labels ?? []);
+          record.muted = conv.muted;
+          record.lastMessageContent = lastMsg?.content ?? record.lastMessageContent;
+          record.lastMessageAt = lastMsg?.created_at ?? record.lastMessageAt;
+          record.syncedAt = now;
+        });
+      }
+
       return conversationsCollection.prepareCreate((record) => {
         record.remoteId = conv.id;
         record.inboxId = conv.inbox_id;
@@ -22,65 +55,11 @@ export async function syncConversations(conversations: ChatwootConversation[]): 
         record.muted = conv.muted;
         record.channel = conv.channel ?? null;
         record.isStarred = false;
-        record.syncedAt = Date.now();
-
-        // Pull last message from nested payload if present
-        const lastMsg = conv.messages?.[conv.messages.length - 1];
+        record.syncedAt = now;
         record.lastMessageContent = lastMsg?.content ?? null;
         record.lastMessageAt = lastMsg?.created_at ?? conv.last_activity_at;
       });
     });
-
-    await database.batch(...ops);
-  });
-}
-
-// Upsert (update if exists, create if not) conversations during incremental sync
-export async function upsertConversations(conversations: ChatwootConversation[]): Promise<void> {
-  await database.write(async () => {
-    const ops = await Promise.all(
-      conversations.map(async (conv) => {
-        const existing = await conversationsCollection
-          .query()
-          .fetch()
-          .then((all) => all.find((c) => c.remoteId === conv.id));
-
-        const meta = conv.meta;
-        const lastMsg = conv.messages?.[conv.messages.length - 1];
-
-        if (existing) {
-          return existing.prepareUpdate((record) => {
-            record.status = conv.status;
-            record.unreadCount = conv.unread_count;
-            record.lastActivityAt = conv.last_activity_at;
-            record.labelsJson = JSON.stringify(conv.labels ?? []);
-            record.muted = conv.muted;
-            record.lastMessageContent = lastMsg?.content ?? record.lastMessageContent;
-            record.lastMessageAt = lastMsg?.created_at ?? record.lastMessageAt;
-            record.syncedAt = Date.now();
-          });
-        }
-
-        return conversationsCollection.prepareCreate((record) => {
-          record.remoteId = conv.id;
-          record.inboxId = conv.inbox_id;
-          record.status = conv.status;
-          record.unreadCount = conv.unread_count;
-          record.lastActivityAt = conv.last_activity_at;
-          record.contactName = meta.sender.name ?? 'Unknown';
-          record.contactAvatar = meta.sender.avatar_url ?? null;
-          record.assigneeId = meta.assignee?.id ?? null;
-          record.assigneeName = meta.assignee?.name ?? null;
-          record.labelsJson = JSON.stringify(conv.labels ?? []);
-          record.muted = conv.muted;
-          record.channel = conv.channel ?? null;
-          record.isStarred = false;
-          record.syncedAt = Date.now();
-          record.lastMessageContent = lastMsg?.content ?? null;
-          record.lastMessageAt = lastMsg?.created_at ?? conv.last_activity_at;
-        });
-      })
-    );
 
     await database.batch(...ops);
   });
