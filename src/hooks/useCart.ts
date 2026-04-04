@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { cartItemsCollection, productsCollection, database } from '../db/database';
 import { useCatalogStore } from '../store/catalogStore';
@@ -68,5 +68,14 @@ export function useCart(contactId?: string) {
     });
   };
 
-  return { items, addToCart, removeFromCart, updateQuantity };
+  const clearCart = useCallback(async (): Promise<void> => {
+    await database.write(async () => {
+      const allItems = await cartItemsCollection.query().fetch();
+      for (const item of allItems) {
+        await item.destroyPermanently();
+      }
+    });
+  }, []);
+
+  return { items, addToCart, removeFromCart, updateQuantity, clearCart };
 }

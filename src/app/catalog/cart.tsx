@@ -5,6 +5,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft, Minus, Plus, Trash2, ShoppingCart, Share2,
 } from 'lucide-react-native';
@@ -24,6 +25,7 @@ interface CartItemWithProduct {
 
 export default function CartScreen() {
   const { colors } = useUIStore();
+  const insets = useSafeAreaInsets();
   const { items, removeFromCart, updateQuantity } = useCart();
   const [enriched, setEnriched] = useState<CartItemWithProduct[]>([]);
 
@@ -76,7 +78,7 @@ export default function CartScreen() {
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={[s.header, { backgroundColor: colors.headerBg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <ArrowLeft color="#ffffff" size={24} />
         </TouchableOpacity>
@@ -183,6 +185,28 @@ export default function CartScreen() {
           {/* ⑩ Shipping Calculator */}
           <ShippingCalc />
 
+          {/* Address + Checkout section */}
+          <View style={[s.checkoutSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[s.checkoutTitle, { color: colors.text }]}>Ready to Order?</Text>
+            <Text style={[s.checkoutSubtitle, { color: colors.textDim }]}>
+              Add a delivery address and send the order to a customer conversation.
+            </Text>
+            <TouchableOpacity
+              style={[s.checkoutBtn, { backgroundColor: colors.green }]}
+              onPress={() => router.push('/catalog/checkout' as never)}
+              activeOpacity={0.8}
+            >
+              <Text style={s.checkoutBtnText}>Proceed to Checkout →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.addressBtn, { borderColor: colors.border }]}
+              onPress={() => router.push('/catalog/addresses' as never)}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.addressBtnText, { color: colors.textDim }]}>Manage Delivery Addresses</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
@@ -194,7 +218,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingTop: 52, paddingBottom: 12, paddingHorizontal: 12,
+    paddingTop: 0, paddingBottom: 12, paddingHorizontal: 12,
   },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: '#fff' },
   emptyWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
@@ -238,4 +262,14 @@ const s = StyleSheet.create({
   divider: { height: 1, marginVertical: 8 },
   totalLabel: { fontSize: 16, fontWeight: '700' },
   totalValue: { fontSize: 18, fontWeight: '800' },
+  checkoutSection: {
+    borderWidth: 1, borderRadius: 14,
+    marginHorizontal: 12, marginTop: 16, padding: 16,
+  },
+  checkoutTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  checkoutSubtitle: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  checkoutBtn: { borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 8 },
+  checkoutBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  addressBtn: { borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1 },
+  addressBtnText: { fontSize: 14, fontWeight: '500' },
 });

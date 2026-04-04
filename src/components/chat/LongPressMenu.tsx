@@ -19,7 +19,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { Copy, Reply, Star, Trash2, X } from 'lucide-react-native';
+import { Copy, Forward, Reply, Star, Trash2, X } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
 import type MessageModel from '../../db/models/MessageModel';
 
@@ -28,6 +28,7 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onReply: (message: MessageModel) => void;
+  onForward?: (message: MessageModel) => void;
   onStar: (message: MessageModel) => void;
   onDelete: (message: MessageModel) => void;
 }
@@ -37,6 +38,7 @@ export default function LongPressMenu({
   visible,
   onClose,
   onReply,
+  onForward,
   onStar,
   onDelete,
 }: Props) {
@@ -153,6 +155,12 @@ export default function LongPressMenu({
       label: 'Reply',
       onPress: handleReply,
       show: true,
+    },
+    {
+      icon: <Forward color={colors.textDim} size={20} />,
+      label: 'Forward',
+      onPress: () => { if (onForward) { onForward(message); } onClose(); },
+      show: !!message.content,
     },
     {
       icon: <Star color={message.isStarred ? colors.yellow : colors.textDim} size={20} fill={message.isStarred ? colors.yellow : 'transparent'} />,

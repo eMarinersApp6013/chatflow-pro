@@ -11,7 +11,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
-  Platform,
   ListRenderItemInfo,
   ScrollView,
 } from 'react-native';
@@ -90,7 +89,7 @@ export default function ChatsScreen() {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingTop: Platform.OS === 'ios' ? insets.top : 12,
+      paddingTop: insets.top,
       paddingBottom: 12,
       backgroundColor: colors.headerBg,
     },

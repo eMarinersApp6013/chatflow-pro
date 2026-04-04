@@ -5,6 +5,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft, Heart, Star, ShoppingCart, Minus, Plus, Bell, Share2,
 } from 'lucide-react-native';
@@ -20,6 +21,7 @@ import type ProductModel from '../../../db/models/ProductModel';
 export default function ProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useUIStore();
+  const insets = useSafeAreaInsets();
   const { addToCart } = useCart();
   const { toggle: toggleWishlist, isWishlisted } = useWishlist();
 
@@ -75,26 +77,30 @@ export default function ProductScreen() {
     Alert.alert('Notification Set', "We'll notify you when this item is back in stock!");
   };
 
-  // Share product in chat
-  const handleShare = () => {
+  // Share product using native share sheet
+  const handleShare = async () => {
     if (!product) return;
+    const { Share } = await import('react-native');
     const text = [
-      `${product.emoji} *${product.name}*`,
+      `${product.emoji || ''} *${product.name}*`,
       `Price: ₹${product.price.toLocaleString()}`,
       `Rating: ⭐ ${product.rating} (${product.reviews} reviews)`,
       product.description ?? '',
       selectedVariant ? `Variant: ${selectedVariant}` : '',
+      product.isOutOfStock ? '❌ Currently out of stock' : `✅ ${product.stock} in stock`,
     ].filter(Boolean).join('\n');
 
-    Alert.alert('Share Product', 'Product details copied! Open a chat to share.', [
-      { text: 'OK' },
-    ]);
+    try {
+      await Share.share({ message: text, title: product.name });
+    } catch {
+      // User cancelled or error
+    }
   };
 
   if (!product) {
     return (
       <View style={[s.container, { backgroundColor: colors.bg }]}>
-        <View style={[s.header, { backgroundColor: colors.headerBg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, paddingTop: insets.top + 12 }]}>
           <TouchableOpacity onPress={() => router.back()}>
             <ArrowLeft color="#ffffff" size={24} />
           </TouchableOpacity>
@@ -109,7 +115,7 @@ export default function ProductScreen() {
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={[s.header, { backgroundColor: colors.headerBg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <ArrowLeft color="#ffffff" size={24} />
         </TouchableOpacity>
@@ -286,7 +292,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingTop: 52, paddingBottom: 12, paddingHorizontal: 12,
+    paddingTop: 0, paddingBottom: 12, paddingHorizontal: 12,
   },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: '600', color: '#fff' },
   headerActions: { flexDirection: 'row', gap: 16 },

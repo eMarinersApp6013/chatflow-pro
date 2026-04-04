@@ -266,6 +266,17 @@ export class ChatwootAdapter extends ChatService {
       body: JSON.stringify({ availability: status }),
     });
   }
+
+  async markAsRead(conversationId: number): Promise<void> {
+    try {
+      await this.request<void>(
+        API.CONVERSATION_MARK_READ(this.accountId, conversationId),
+        { method: 'POST' }
+      );
+    } catch {
+      // Non-critical — silently ignore if it fails
+    }
+  }
 }
 
 // Singleton adapter instance shared across the app

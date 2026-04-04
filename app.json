@@ -19,7 +19,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Used for voice search in the catalog",
         "NSPhotoLibraryUsageDescription": "Used for photo search and sending images",
-        "NSCameraUsageDescription": "Used for photo search and sending images"
+        "NSCameraUsageDescription": "Used for photo search and sending images",
+        "NSContactsUsageDescription": "Used to save customer contacts to your address book"
       }
     },
     "android": {
@@ -34,7 +35,12 @@
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "CAMERA"
+        "CAMERA",
+        "READ_CONTACTS",
+        "WRITE_CONTACTS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "USE_FULL_SCREEN_INTENT"
       ]
     },
     "plugins": [
@@ -50,6 +56,14 @@
         {
           "photosPermission": "Used for photo search and sending images",
           "cameraPermission": "Used for photo search"
+        }
+      ],
+      "expo-contacts",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#00a884"
         }
       ]
     ],

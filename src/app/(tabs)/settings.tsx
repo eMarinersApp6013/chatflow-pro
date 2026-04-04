@@ -10,7 +10,6 @@ import {
   Switch,
   ScrollView,
   Alert,
-  Platform,
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
@@ -136,7 +135,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const paddingTop = Platform.OS === 'ios' ? insets.top : 0;
+  const paddingTop = insets.top;
 
   const s = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },

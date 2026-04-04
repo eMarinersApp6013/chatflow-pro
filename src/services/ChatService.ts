@@ -93,4 +93,7 @@ export abstract class ChatService {
 
   // Update the current agent's availability status
   abstract updateAvailability(status: AvailabilityStatus): Promise<void>;
+
+  // Mark conversation as read — clears unread badge on Chatwoot
+  abstract markAsRead(conversationId: number): Promise<void>;
 }

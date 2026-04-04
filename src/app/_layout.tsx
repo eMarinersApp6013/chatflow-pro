@@ -2,7 +2,7 @@
 // Phase 6: added Toast overlay for non-blocking notifications.
 
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, AppState, AppStateStatus } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,6 +13,8 @@ import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
 import { CONFIG } from '../constants/config';
 import ToastContainer from '../components/common/Toast';
+import * as Notifications from 'expo-notifications';
+import { wsService } from '../services/WebSocketService';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +34,30 @@ export default function RootLayout() {
     // Restore auth session and theme preference on cold start
     hydrateTheme();
     hydrate();
+  }, []);
+
+  // Configure notification handler so foreground notifications show as banners
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }, []);
+
+  // Reconnect WebSocket when app returns to foreground so chats refresh immediately
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') {
+        const store = useAuthStore.getState();
+        if (store.credentials) {
+          wsService.connect(store.credentials.chatwootUrl, store.credentials.pubsubToken);
+        }
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   return (
