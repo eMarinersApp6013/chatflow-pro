@@ -9,11 +9,19 @@ import ProductModel from './models/ProductModel';
 import CartItemModel from './models/CartItemModel';
 import WishlistModel from './models/WishlistModel';
 
-// SQLite adapter — uses JSI on native for best performance
+// SQLite adapter.
+// jsi: false — JSI mode requires extra C++ native setup not available in
+// expo-managed builds. Bridge mode works reliably across all configurations.
+// newArchEnabled must be false in app.json (android section) because
+// WatermelonDB 0.28 is incompatible with React Native New Architecture.
 const adapter = new SQLiteAdapter({
   schema,
   dbName: 'chatflowpro',
+  jsi: false,
   onSetUpError: (error) => {
+    // Called if the SQLite file can't be opened/created.
+    // Logging is the best we can do here; the app will show an error
+    // via DatabaseProvider's onError prop in _layout.tsx.
     console.error('[DB] Setup error:', error);
   },
 });

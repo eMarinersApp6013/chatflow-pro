@@ -1,5 +1,5 @@
 import { Model } from '@nozbe/watermelondb';
-import { field, children, date, readonly } from '@nozbe/watermelondb/decorators';
+import { field } from '@nozbe/watermelondb/decorators';
 import { Associations } from '@nozbe/watermelondb/Model';
 
 export default class ConversationModel extends Model {

@@ -1,26 +1,29 @@
 // Root index — redirects to (tabs) if logged in, otherwise to login.
+// Uses <Redirect> instead of router.replace() in useEffect — the imperative
+// router.replace() fires before the navigator finishes mounting and crashes.
+// <Redirect> renders declaratively after the navigator is ready.
 
-import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { DarkColors } from '../constants/colors';
 
 export default function Index() {
   const { isLoggedIn, isLoading } = useAuthStore();
 
-  useEffect(() => {
-    if (isLoading) return;
-    if (isLoggedIn) {
-      router.replace('/(tabs)');
-    } else {
-      router.replace('/(auth)/login');
-    }
-  }, [isLoggedIn, isLoading]);
+  // Show spinner while hydrating credentials from secure storage
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: DarkColors.bg }}>
+        <ActivityIndicator color={DarkColors.green} size="large" />
+      </View>
+    );
+  }
 
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: DarkColors.bg }}>
-      <ActivityIndicator color={DarkColors.green} size="large" />
-    </View>
-  );
+  // Redirect declaratively — safe to call once the navigator is mounted
+  if (isLoggedIn) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <Redirect href="/(auth)/login" />;
 }
