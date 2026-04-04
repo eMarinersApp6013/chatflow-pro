@@ -10,7 +10,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
-  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RefreshCw } from 'lucide-react-native';
@@ -138,7 +137,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { stats, isLoading, refresh } = useReports();
 
-  const paddingTop = Platform.OS === 'ios' ? insets.top : 0;
+  const paddingTop = insets.top;
 
   if (isLoading && stats.openCount === 0) {
     return (
@@ -284,7 +283,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 14,
     paddingHorizontal: 16,
-    paddingTop: 52,
+    paddingTop: 0,
   },
   headerTitle: { flex: 1, fontSize: 22, fontWeight: '800', color: '#ffffff' },
   refreshBtn: { padding: 6 },

@@ -1,6 +1,7 @@
 import { Database } from '@nozbe/watermelondb';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 import { schema } from './schema';
+import { migrations } from './migrations';
 import ConversationModel from './models/ConversationModel';
 import MessageModel from './models/MessageModel';
 import ContactModel from './models/ContactModel';
@@ -8,6 +9,7 @@ import LabelModel from './models/LabelModel';
 import ProductModel from './models/ProductModel';
 import CartItemModel from './models/CartItemModel';
 import WishlistModel from './models/WishlistModel';
+import AddressModel from './models/AddressModel';
 
 // SQLite adapter.
 // jsi: false — JSI mode requires extra C++ native setup not available in
@@ -16,6 +18,7 @@ import WishlistModel from './models/WishlistModel';
 // WatermelonDB 0.28 is incompatible with React Native New Architecture.
 const adapter = new SQLiteAdapter({
   schema,
+  migrations,
   dbName: 'chatflowpro',
   jsi: false,
   onSetUpError: (error) => {
@@ -36,6 +39,7 @@ export const database = new Database({
     ProductModel,
     CartItemModel,
     WishlistModel,
+    AddressModel,
   ],
 });
 
@@ -54,3 +58,5 @@ export const cartItemsCollection =
   database.get<CartItemModel>('cart_items');
 export const wishlistCollection =
   database.get<WishlistModel>('wishlist_items');
+export const addressesCollection =
+  database.get<AddressModel>('addresses');

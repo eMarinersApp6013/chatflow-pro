@@ -26,7 +26,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
-  ArrowLeft, Phone, MoreVertical, UserPlus, RefreshCw, Zap, FileText, X,
+  ArrowLeft, Phone, MoreVertical, UserPlus, RefreshCw, Zap, FileText, X, Star, Tag,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -53,6 +53,7 @@ import ImageViewer from '../../components/chat/ImageViewer';
 import AssignmentDrawer from '../../components/chat/AssignmentDrawer';
 import StatusPicker from '../../components/chat/StatusPicker';
 import MacrosDrawer from '../../components/chat/MacrosDrawer';
+import ForwardSheet from '../../components/chat/ForwardSheet';
 
 import type MessageModel from '../../db/models/MessageModel';
 import type { ReplyContext, MessageMode } from '../../types/app';
@@ -92,15 +93,25 @@ export default function ChatScreen() {
   const [assignmentVisible, setAssignmentVisible] = useState(false);
   const [statusPickerVisible, setStatusPickerVisible] = useState(false);
   const [macrosVisible, setMacrosVisible] = useState(false);
+  const [forwardSheetVisible, setForwardSheetVisible] = useState(false);
+  const [forwardContent, setForwardContent] = useState('');
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
+  const [labelsPickerVisible, setLabelsPickerVisible] = useState(false);
+  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
 
   const listRef = useRef<FlatList>(null);
-  const prevMessageCount = useRef(0);
+  const hasScrolledToBottom = useRef(false);
 
   // ── Scroll to bottom when new messages arrive ──────────────
   useEffect(() => {
-    if (messages.length > prevMessageCount.current) {
-      prevMessageCount.current = messages.length;
+    if (messages.length === 0) return;
+    if (!hasScrolledToBottom.current) {
+      // First load — scroll immediately and again after a short delay to account for render
+      hasScrolledToBottom.current = true;
+      listRef.current?.scrollToEnd({ animated: false });
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 300);
+    } else {
+      // New message arrived — smooth scroll
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
     }
   }, [messages.length]);
@@ -109,6 +120,13 @@ export default function ChatScreen() {
   useEffect(() => {
     return wsService.onConnectionChange(setConnectionState);
   }, []);
+
+  // Mark conversation as read when chat is opened — clears unread badge
+  useEffect(() => {
+    if (remoteId) {
+      chatService.markAsRead(remoteId).catch(() => {/* non-critical */});
+    }
+  }, [remoteId]);
 
   // ── Handle incoming WebSocket messages for this conversation ─
   useEffect(() => {
@@ -225,6 +243,35 @@ export default function ChatScreen() {
     setViewerVisible(true);
   }, []);
 
+  const handleMenuForward = useCallback((msg: MessageModel) => {
+    setForwardContent(msg.content ?? '');
+    setForwardSheetVisible(true);
+  }, []);
+
+  const handleStarConversation = useCallback(async () => {
+    setHeaderMenuVisible(false);
+    const convs = await conversationsCollection.query(Q.where('remote_id', remoteId)).fetch();
+    if (convs.length > 0) {
+      await database.write(async () => {
+        await convs[0].update((c) => { c.isStarred = !c.isStarred; });
+      });
+    }
+  }, [remoteId]);
+
+  const handleSetLabels = useCallback(async (newLabels: string[]) => {
+    try {
+      const updated = await chatService.setLabels(remoteId, newLabels);
+      const convs = await conversationsCollection.query(Q.where('remote_id', remoteId)).fetch();
+      if (convs.length > 0) {
+        await database.write(async () => {
+          await convs[0].update((c) => { c.labelsJson = JSON.stringify(updated); });
+        });
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [remoteId]);
+
   // ── Phase 4: Assignment ────────────────────────────────────
   const handleAssignAgent = useCallback(
     async (agent: ChatwootAgent) => {
@@ -329,7 +376,7 @@ export default function ChatScreen() {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingTop: Platform.OS === 'ios' ? insets.top : 8,
+      paddingTop: insets.top,
       paddingBottom: 10,
       paddingHorizontal: 8,
       backgroundColor: colors.headerBg,
@@ -375,7 +422,7 @@ export default function ChatScreen() {
     popupOverlay: { flex: 1 },
     popup: {
       position: 'absolute',
-      top: (Platform.OS === 'ios' ? insets.top : 8) + 52,
+      top: insets.top + 52,
       right: 8,
       backgroundColor: colors.surface,
       borderRadius: 12,
@@ -516,6 +563,7 @@ export default function ChatScreen() {
         visible={menuVisible}
         onClose={() => setMenuVisible(false)}
         onReply={handleMenuReply}
+        onForward={handleMenuForward}
         onStar={handleMenuStar}
         onDelete={handleMenuDelete}
       />
@@ -551,6 +599,50 @@ export default function ChatScreen() {
         onMacroRun={() => {/* conversation will update via WS */}}
       />
 
+      {/* ── Labels picker modal ── */}
+      <Modal
+        transparent
+        visible={labelsPickerVisible}
+        animationType="fade"
+        onRequestClose={() => setLabelsPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+          activeOpacity={1}
+          onPress={() => setLabelsPickerVisible(false)}
+        >
+          <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 16 }}>
+              Manage Labels
+            </Text>
+            {availableLabels.length === 0 ? (
+              <Text style={{ color: colors.textDim, marginBottom: 16 }}>No labels found. Create labels in Chatwoot settings.</Text>
+            ) : (
+              availableLabels.map((lbl) => {
+                const isActive = convLabels.includes(lbl);
+                return (
+                  <TouchableOpacity
+                    key={lbl}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, gap: 12 }}
+                    onPress={() => {
+                      const newLabels = isActive ? convLabels.filter(l => l !== lbl) : [...convLabels, lbl];
+                      handleSetLabels(newLabels);
+                      setLabelsPickerVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ width: 20, height: 20, borderRadius: 4, backgroundColor: isActive ? colors.green : colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                      {isActive && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
+                    </View>
+                    <Text style={{ fontSize: 15, color: colors.text }}>{lbl}</Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* ── Header popup menu ── */}
       <Modal
         transparent
@@ -564,6 +656,34 @@ export default function ChatScreen() {
           onPress={() => setHeaderMenuVisible(false)}
         >
           <View style={s.popup}>
+            <TouchableOpacity
+              style={s.popupRow}
+              onPress={handleStarConversation}
+              activeOpacity={0.7}
+            >
+              <Star color={conversation?.isStarred ? colors.yellow : colors.textDim} size={18} fill={conversation?.isStarred ? colors.yellow : 'transparent'} />
+              <Text style={s.popupLabel}>{conversation?.isStarred ? 'Unstar Conversation' : 'Star Conversation'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={s.popupRow}
+              onPress={async () => {
+                setHeaderMenuVisible(false);
+                // Load available labels
+                try {
+                  const lbls = await chatService.getLabels();
+                  setAvailableLabels(lbls.map(l => l.title));
+                } catch {
+                  setAvailableLabels([]);
+                }
+                setLabelsPickerVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Tag color={colors.textDim} size={18} />
+              <Text style={s.popupLabel}>Manage Labels</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={s.popupRow}
               onPress={() => { setHeaderMenuVisible(false); setAssignmentVisible(true); }}
@@ -605,6 +725,11 @@ export default function ChatScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+      <ForwardSheet
+        visible={forwardSheetVisible}
+        messageContent={forwardContent}
+        onClose={() => setForwardSheetVisible(false)}
+      />
     </KeyboardAvoidingView>
   );
 }

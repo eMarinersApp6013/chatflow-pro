@@ -6,7 +6,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, FlatList, TouchableOpacity, Alert, StyleSheet, ActivityIndicator,
+  Modal, TextInput,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Heart, ShoppingCart, ChevronRight, Sparkles } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
@@ -36,6 +38,11 @@ export default function CatalogScreen() {
 
   const { addToCart } = useCart();
   const { toggle: toggleWishlist, isWishlisted } = useWishlist();
+  const insets = useSafeAreaInsets();
+
+  // ③ Voice search modal state
+  const [voiceModalVisible, setVoiceModalVisible] = useState(false);
+  const [voiceInput, setVoiceInput] = useState('');
 
   const [allProducts, setAllProducts] = useState<ProductModel[]>([]);
   const [filtered, setFiltered] = useState<ProductModel[]>([]);
@@ -89,29 +96,10 @@ export default function CatalogScreen() {
     CatalogService.sortProducts(results, sortOption).then(setFiltered);
   }, [allProducts, searchQuery, activeCategory, sortOption]);
 
-  // ③ Voice search handler
-  const handleVoiceSearch = useCallback(async () => {
-    try {
-      const Speech = await import('expo-speech');
-      // For MVP, show alert explaining voice search
-      Alert.alert(
-        'Voice Search',
-        'Tap OK, then speak your search query. The device will process your voice.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'OK',
-            onPress: () => {
-              // MVP: prompt user to type what they'd say
-              // Full implementation would use expo-speech-recognition
-              Alert.alert('Voice Search', 'Voice recognition requires a physical device. Type your search instead.');
-            },
-          },
-        ]
-      );
-    } catch {
-      Alert.alert('Voice Search', 'Speech module not available. Type your search instead.');
-    }
+  // ③ Voice search handler — shows a text-input modal (speech-to-text only works on physical devices via OS keyboard microphone)
+  const handleVoiceSearch = useCallback(() => {
+    setVoiceInput('');
+    setVoiceModalVisible(true);
   }, []);
 
   // ⑧ Photo search handler
@@ -170,7 +158,7 @@ export default function CatalogScreen() {
   if (loading) {
     return (
       <View style={[s.container, { backgroundColor: colors.bg }]}>
-        <View style={[s.header, { backgroundColor: colors.headerBg }]}>
+        <View style={[s.header, { backgroundColor: colors.headerBg, paddingTop: insets.top + 12 }]}>
           <Text style={s.headerTitle}>Catalog</Text>
         </View>
         <View style={s.loadingWrap}>
@@ -183,7 +171,7 @@ export default function CatalogScreen() {
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={[s.header, { backgroundColor: colors.headerBg }]}>
+      <View style={[s.header, { backgroundColor: colors.headerBg, paddingTop: insets.top + 12 }]}>
         <Text style={s.headerTitle}>Catalog</Text>
         <View style={s.headerRight}>
           <TouchableOpacity onPress={() => router.push('/catalog/wishlist')} style={s.headerBtn}>
@@ -381,6 +369,62 @@ export default function CatalogScreen() {
       <View style={s.cartBarWrap}>
         <CartBar />
       </View>
+
+      {/* ③ Voice search modal */}
+      <Modal
+        transparent
+        visible={voiceModalVisible}
+        animationType="fade"
+        onRequestClose={() => setVoiceModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}
+          activeOpacity={1}
+          onPress={() => setVoiceModalVisible(false)}
+        >
+          <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12 }}>
+              🎤 Voice Search
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.textDim, marginBottom: 12 }}>
+              Tap the mic icon on your keyboard to speak, or type your search:
+            </Text>
+            <TextInput
+              autoFocus
+              value={voiceInput}
+              onChangeText={setVoiceInput}
+              placeholder="e.g. navy uniform size L..."
+              placeholderTextColor={colors.textDim}
+              style={{
+                backgroundColor: colors.surface2,
+                borderRadius: 10,
+                padding: 12,
+                fontSize: 15,
+                color: colors.text,
+                borderWidth: 1,
+                borderColor: colors.border,
+                marginBottom: 14,
+              }}
+              onSubmitEditing={() => {
+                if (voiceInput.trim()) {
+                  setSearchQuery(voiceInput.trim());
+                }
+                setVoiceModalVisible(false);
+              }}
+              returnKeyType="search"
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: colors.green, borderRadius: 10, padding: 12, alignItems: 'center' }}
+              onPress={() => {
+                if (voiceInput.trim()) setSearchQuery(voiceInput.trim());
+                setVoiceModalVisible(false);
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Search</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -399,7 +443,7 @@ const s = StyleSheet.create({
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 52, paddingBottom: 12, paddingHorizontal: 16,
+    paddingTop: 0, paddingBottom: 12, paddingHorizontal: 16,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#ffffff' },
   headerRight: { flexDirection: 'row', gap: 16 },

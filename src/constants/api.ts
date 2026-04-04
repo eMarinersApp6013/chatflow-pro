@@ -15,6 +15,8 @@ export const API = {
     `/api/v1/accounts/${accountId}/conversations/${id}/labels`,
   CONVERSATION_TOGGLE_STATUS: (accountId: number, id: number) =>
     `/api/v1/accounts/${accountId}/conversations/${id}/toggle_status`,
+  CONVERSATION_MARK_READ: (accountId: number, id: number) =>
+    `/api/v1/accounts/${accountId}/conversations/${id}/update_last_seen`,
   CONVERSATION_FILTER: (accountId: number) =>
     `/api/v1/accounts/${accountId}/conversations/filter`,
 

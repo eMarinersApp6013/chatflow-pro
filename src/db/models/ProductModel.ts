@@ -11,6 +11,7 @@ export default class ProductModel extends Model {
   @field('category') category!: string;
   @field('emoji') emoji!: string | null;
   @field('image_url') imageUrl!: string | null;
+  @field('gallery_images') galleryImagesJson!: string | null;
   @field('stock') stock!: number;
   @field('rating') rating!: number;
   @field('reviews') reviews!: number;
@@ -32,5 +33,14 @@ export default class ProductModel extends Model {
 
   get isLowStock(): boolean {
     return this.stock > 0 && this.stock < 5;
+  }
+
+  get galleryImages(): string[] {
+    if (!this.galleryImagesJson) return [];
+    try {
+      return JSON.parse(this.galleryImagesJson);
+    } catch {
+      return [];
+    }
   }
 }

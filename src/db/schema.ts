@@ -3,7 +3,7 @@ import { appSchema, tableSchema } from '@nozbe/watermelondb';
 // WatermelonDB schema — all local tables
 // Version bumps trigger migrations; always increment when changing columns.
 export const schema = appSchema({
-  version: 1,
+  version: 2,
   tables: [
     tableSchema({
       name: 'conversations',
@@ -85,6 +85,7 @@ export const schema = appSchema({
         { name: 'category', type: 'string' },
         { name: 'emoji', type: 'string', isOptional: true },
         { name: 'image_url', type: 'string', isOptional: true },
+        { name: 'gallery_images', type: 'string', isOptional: true },  // JSON array of image URLs
         { name: 'stock', type: 'number' },
         { name: 'rating', type: 'number' },
         { name: 'reviews', type: 'number' },
@@ -110,6 +111,23 @@ export const schema = appSchema({
       columns: [
         { name: 'product_remote_id', type: 'string' },
         { name: 'added_at', type: 'number' },
+      ],
+    }),
+
+    tableSchema({
+      name: 'addresses',
+      columns: [
+        { name: 'label', type: 'string' },                // 'Home', 'Office', etc.
+        { name: 'name', type: 'string' },                 // recipient name
+        { name: 'phone', type: 'string' },
+        { name: 'line1', type: 'string' },
+        { name: 'line2', type: 'string', isOptional: true },
+        { name: 'city', type: 'string' },
+        { name: 'state', type: 'string' },
+        { name: 'pincode', type: 'string' },
+        { name: 'country', type: 'string' },
+        { name: 'is_default', type: 'boolean' },
+        { name: 'created_at', type: 'number' },
       ],
     }),
   ],
