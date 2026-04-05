@@ -3,6 +3,7 @@ name: Build Android APK (Direct Gradle)
 on:
   push:
     branches:
+      - main
       - claude/setup-expo-typescript-XN4x1
   workflow_dispatch:
 
