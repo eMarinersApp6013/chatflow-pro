@@ -9,6 +9,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -54,6 +55,7 @@ import AssignmentDrawer from '../../components/chat/AssignmentDrawer';
 import StatusPicker from '../../components/chat/StatusPicker';
 import MacrosDrawer from '../../components/chat/MacrosDrawer';
 import ForwardSheet from '../../components/chat/ForwardSheet';
+import { SmartReply } from '../../components/chat/SmartReply';
 
 import type MessageModel from '../../db/models/MessageModel';
 import type { ReplyContext, MessageMode } from '../../types/app';
@@ -78,6 +80,12 @@ export default function ChatScreen() {
   const { conversation, isLoading } = useConversation(remoteId);
   const { messages, sendMessage, retryMessage, loadMore } = useMessages(remoteId);
   const { typingUsers } = useTyping(remoteId);
+
+  // Build a fast lookup map: remoteId → message for resolving reply-to references
+  const messagesById = useMemo(
+    () => new Map(messages.map((m) => [m.remoteId, m])),
+    [messages]
+  );
 
   const [mode, setMode] = useState<MessageMode>('reply');
   const [replyContext, setReplyContext] = useState<ReplyContext | null>(null);
@@ -179,10 +187,10 @@ export default function ChatScreen() {
   // ── Send text handler ──────────────────────────────────────
   const handleSend = useCallback(
     (content: string) => {
-      sendMessage(content, mode);
+      sendMessage(content, mode, replyContext?.messageId ?? undefined);
       setReplyContext(null);
     },
-    [mode, sendMessage]
+    [mode, sendMessage, replyContext]
   );
 
   // ── Attachment picked → upload ─────────────────────────────
@@ -354,14 +362,32 @@ export default function ChatScreen() {
             onLongPress={handleLongPress}
             onImagePress={handleImagePress}
             onRetry={retryMessage}
+            replyMessage={
+              item.replyToId && item.replyToId > 0 && messagesById.get(item.replyToId)
+                ? {
+                    content: messagesById.get(item.replyToId)!.content ?? '',
+                    senderName: messagesById.get(item.replyToId)!.senderName ?? 'Unknown',
+                  }
+                : undefined
+            }
           />
         </SwipeReply>
       </View>
     ),
-    [shouldShowDate, shouldShowTail, handleLongPress, handleSwipeReply, handleImagePress, retryMessage]
+    [shouldShowDate, shouldShowTail, handleLongPress, handleSwipeReply, handleImagePress, retryMessage, messagesById]
   );
 
   const keyExtractor = (item: MessageModel) => item.id;
+
+  // Guard against invalid/missing id — prevents crash
+  // Placed after all hooks to comply with React Rules of Hooks
+  if (!id || isNaN(remoteId) || remoteId <= 0) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0b141a', justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: '#8696a0', fontSize: 15 }}>Conversation not found.</Text>
+      </View>
+    );
+  }
 
   const statusLabel =
     conversation?.status === 'resolved' ? '✓ Resolved'
@@ -546,6 +572,17 @@ export default function ChatScreen() {
           )}
         </View>
       )}
+
+      {/* ── Smart Reply suggestions ── */}
+      {messages.length > 0 && (() => {
+        const last = messages[messages.length - 1];
+        return last?.isIncoming ? (
+          <SmartReply
+            lastMessageContent={last.content}
+            onSelect={(reply) => handleSend(reply)}
+          />
+        ) : null;
+      })()}
 
       {/* ── Composer ── */}
       <MessageInput

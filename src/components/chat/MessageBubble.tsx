@@ -206,6 +206,20 @@ export default function MessageBubble({
           </View>
         </TouchableOpacity>
 
+        {/* Reactions display — shown outside/below the bubble */}
+        {Object.keys(message.reactions).length > 0 && (
+          <View style={[reactionStyles.container, { alignSelf: isOut ? 'flex-end' : 'flex-start' }]}>
+            {Object.entries(message.reactions).map(([emoji, count]) => (
+              <View key={emoji} style={[reactionStyles.badge, { backgroundColor: colors.surface2 }]}>
+                <Text style={reactionStyles.emoji}>{emoji}</Text>
+                {count > 1 && (
+                  <Text style={[reactionStyles.count, { color: colors.textDim }]}>{count}</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* ⑦ Failed badge — "Tap to retry" */}
         {isFailed && isOut && (
           <TouchableOpacity
@@ -336,4 +350,11 @@ const styles = StyleSheet.create({
   },
   tailOut: { marginLeft: 2 },
   tailIn: { marginRight: 2 },
+});
+
+const reactionStyles = StyleSheet.create({
+  container: { flexDirection: 'row', gap: 4, marginTop: -4, marginBottom: 4, paddingHorizontal: 4 },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+  emoji: { fontSize: 14 },
+  count: { fontSize: 10, fontWeight: '600' },
 });

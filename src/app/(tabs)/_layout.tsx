@@ -1,10 +1,11 @@
-// Tab bar layout — 4 tabs: Chats, Dashboard, Catalog, Settings.
+// Tab bar layout — 5 tabs: Chats, Catalog, Orders, Knowledge, Settings.
+// Dashboard is hidden from the tab bar (accessible from Settings instead).
 // Chats tab shows a red unread count badge driven by WatermelonDB.
 
 import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
-import { MessageCircle, BarChart2, ShoppingBag, Settings } from 'lucide-react-native';
+import { MessageCircle, BarChart2, ShoppingBag, Package, BookOpen, Settings } from 'lucide-react-native';
 import { Q } from '@nozbe/watermelondb';
 import { useUIStore } from '../../store/uiStore';
 import { conversationsCollection } from '../../db/database';
@@ -79,15 +80,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <BarChart2 color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="catalog"
         options={{
           title: 'Catalog',
@@ -97,11 +89,39 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+          tabBarIcon: ({ color, size }) => (
+            <Package color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="knowledge"
+        options={{
+          title: 'Knowledge',
+          tabBarIcon: ({ color, size }) => (
+            <BookOpen color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, size }) => (
             <Settings color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          href: null,
+          tabBarIcon: ({ color, size }) => (
+            <BarChart2 color={color} size={size} />
           ),
         }}
       />

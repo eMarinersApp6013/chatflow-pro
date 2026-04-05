@@ -10,6 +10,9 @@ import ProductModel from './models/ProductModel';
 import CartItemModel from './models/CartItemModel';
 import WishlistModel from './models/WishlistModel';
 import AddressModel from './models/AddressModel';
+import TaskModel from './models/TaskModel';
+import OrderModel from './models/OrderModel';
+import KnowledgeItemModel from './models/KnowledgeItemModel';
 
 // SQLite adapter.
 // jsi: false — JSI mode requires extra C++ native setup not available in
@@ -40,6 +43,9 @@ export const database = new Database({
     CartItemModel,
     WishlistModel,
     AddressModel,
+    TaskModel,
+    OrderModel,
+    KnowledgeItemModel,
   ],
 });
 
@@ -60,3 +66,6 @@ export const wishlistCollection =
   database.get<WishlistModel>('wishlist_items');
 export const addressesCollection =
   database.get<AddressModel>('addresses');
+export const tasksCollection = database.get<TaskModel>('tasks');
+export const ordersCollection = database.get<OrderModel>('orders');
+export const knowledgeCollection = database.get<KnowledgeItemModel>('knowledge_items');

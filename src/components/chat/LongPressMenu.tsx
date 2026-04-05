@@ -31,6 +31,7 @@ interface Props {
   onForward?: (message: MessageModel) => void;
   onStar: (message: MessageModel) => void;
   onDelete: (message: MessageModel) => void;
+  onReact?: (emoji: string) => void;
 }
 
 export default function LongPressMenu({
@@ -41,6 +42,7 @@ export default function LongPressMenu({
   onForward,
   onStar,
   onDelete,
+  onReact,
 }: Props) {
   const { colors } = useUIStore();
   const translateY = useSharedValue(300);
@@ -143,6 +145,18 @@ export default function LongPressMenu({
     starredLabel: { color: colors.yellow },
   });
 
+  const reactionStyles = StyleSheet.create({
+    emojiRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      borderBottomWidth: 0.5,
+    },
+    emojiBtn: { padding: 6 },
+    emoji: { fontSize: 24 },
+  });
+
   const actions = [
     {
       icon: <Copy color={colors.textDim} size={20} />,
@@ -186,6 +200,22 @@ export default function LongPressMenu({
 
       <Animated.View style={[s.sheet, sheetStyle]}>
         <View style={s.handle} />
+
+        {/* Quick reaction emoji row */}
+        <View style={[reactionStyles.emojiRow, { borderBottomColor: colors.border }]}>
+          {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
+            <TouchableOpacity
+              key={emoji}
+              style={reactionStyles.emojiBtn}
+              onPress={() => {
+                onReact?.(emoji);
+                onClose();
+              }}
+            >
+              <Text style={reactionStyles.emoji}>{emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {preview ? (
           <View style={s.preview}>

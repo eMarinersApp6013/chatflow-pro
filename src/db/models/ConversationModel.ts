@@ -25,6 +25,9 @@ export default class ConversationModel extends Model {
   @field('muted') muted!: boolean;
   @field('channel') channel!: string | null;
   @field('is_starred') isStarred!: boolean;
+  @field('is_pinned') isPinned!: boolean;
+  @field('pin_order') pinOrder!: number | null;
+  @field('is_archived') isArchived!: boolean;
   @field('synced_at') syncedAt!: number;
 
   // Parse labels JSON array

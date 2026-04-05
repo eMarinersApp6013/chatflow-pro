@@ -96,4 +96,17 @@ export abstract class ChatService {
 
   // Mark conversation as read — clears unread badge on Chatwoot
   abstract markAsRead(conversationId: number): Promise<void>;
+
+  // React to a message with an emoji
+  abstract reactToMessage(conversationId: number, messageId: number, emoji: string): Promise<void>;
+
+  // Canned response management
+  abstract createCannedResponse(shortCode: string, content: string): Promise<{ id: number; short_code: string; content: string }>;
+  abstract updateCannedResponse(id: number, shortCode: string, content: string): Promise<void>;
+  abstract deleteCannedResponse(id: number): Promise<void>;
+
+  // Label management
+  abstract createLabel(title: string, color: string, description?: string): Promise<ChatwootLabel>;
+  abstract updateLabel(id: number, title: string, color: string, description?: string): Promise<ChatwootLabel>;
+  abstract deleteLabel(id: number): Promise<void>;
 }

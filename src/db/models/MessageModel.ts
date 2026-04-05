@@ -26,6 +26,7 @@ export default class MessageModel extends Model {
   @field('is_pending') isPending!: boolean;
   @field('is_starred') isStarred!: boolean;
   @field('reply_to_id') replyToId!: number | null;
+  @field('reactions_json') reactionsJson!: string | null;
 
   @relation('conversations', 'conversation_id') conversation!: ConversationModel;
 
@@ -50,5 +51,15 @@ export default class MessageModel extends Model {
   // true = activity (conversation assigned, etc.)
   get isActivity(): boolean {
     return this.messageType === 2;
+  }
+
+  // Returns reaction counts: { "👍": 2, "❤️": 1 }
+  get reactions(): Record<string, number> {
+    if (!this.reactionsJson) return {};
+    try {
+      return JSON.parse(this.reactionsJson) as Record<string, number>;
+    } catch {
+      return {};
+    }
   }
 }
