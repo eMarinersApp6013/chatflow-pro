@@ -12,18 +12,25 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { ArrowLeft, Mail, Phone, MessageCircle, ExternalLink, MapPin, Building, UserCheck } from 'lucide-react-native';
+import { ArrowLeft, Mail, Phone, MessageCircle, ExternalLink, UserCheck, Image as ImageIcon } from 'lucide-react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Q } from '@nozbe/watermelondb';
 
 import { useUIStore } from '../../store/uiStore';
 import { chatService } from '../../services/ChatwootAdapter';
+import { messagesCollection } from '../../db/database';
 import type { ColorScheme } from '../../constants/colors';
 import Avatar from '../../components/common/Avatar';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
-import type { ChatwootContact, ChatwootConversation } from '../../types/chatwoot';
+import type { ChatwootContact, ChatwootConversation, ChatwootAttachment } from '../../types/chatwoot';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const MEDIA_THUMB = (SCREEN_WIDTH - 24 - 8) / 3; // 3 per row with gaps
 
 export default function ContactScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,6 +41,7 @@ export default function ContactScreen() {
 
   const [contact, setContact] = useState<ChatwootContact | null>(null);
   const [conversations, setConversations] = useState<ChatwootConversation[]>([]);
+  const [mediaAttachments, setMediaAttachments] = useState<ChatwootAttachment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
@@ -54,6 +62,23 @@ export default function ContactScreen() {
         if (cancelled) return;
         setContact(contactData);
         setConversations(contactConvs);
+
+        // Load media attachments from local WatermelonDB for this conversation
+        const msgs = await messagesCollection
+          .query(
+            Q.where('conversation_remote_id', convRemoteId),
+            Q.where('attachments', Q.notEq(null)),
+            Q.sortBy('created_at', Q.desc)
+          )
+          .fetch();
+        const images: ChatwootAttachment[] = [];
+        for (const msg of msgs) {
+          for (const att of msg.attachments) {
+            if (att.file_type === 'image') images.push(att);
+          }
+          if (images.length >= 30) break;
+        }
+        if (!cancelled) setMediaAttachments(images);
       } catch {
         if (!cancelled) setError('Could not load contact. Please try again.');
       } finally {
@@ -192,6 +217,45 @@ export default function ContactScreen() {
             </View>
           ) : null}
 
+          {/* Media section */}
+          {mediaAttachments.length > 0 && (
+            <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.sectionTitle, { color: colors.textDim, borderBottomColor: colors.border }]}>
+                Media ({mediaAttachments.length})
+              </Text>
+              <View style={s.mediaGrid}>
+                {mediaAttachments.slice(0, 9).map((att) => {
+                  const uri = att.data_url || att.file_url;
+                  return (
+                    <TouchableOpacity
+                      key={att.id}
+                      onPress={() => router.push(`/chat/${convRemoteId}`)}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={{ uri }}
+                        style={[s.mediaThumb, { width: MEDIA_THUMB, height: MEDIA_THUMB }]}
+                        contentFit="cover"
+                        transition={150}
+                        placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+                {mediaAttachments.length > 9 && (
+                  <TouchableOpacity
+                    style={[s.mediaMore, { width: MEDIA_THUMB, height: MEDIA_THUMB, backgroundColor: colors.surface2 }]}
+                    onPress={() => router.push(`/chat/${convRemoteId}`)}
+                    activeOpacity={0.7}
+                  >
+                    <ImageIcon color={colors.textDim} size={20} />
+                    <Text style={[s.mediaMoreText, { color: colors.textDim }]}>+{mediaAttachments.length - 9}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* Conversation history */}
           <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[s.sectionTitle, { color: colors.textDim, borderBottomColor: colors.border }]}>
@@ -276,6 +340,10 @@ const s = StyleSheet.create({
   section: { marginHorizontal: 12, marginBottom: 12, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   sectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   noConvs: { padding: 16, fontSize: 14 },
+  mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 4, gap: 4 },
+  mediaThumb: { borderRadius: 4 },
+  mediaMore: { borderRadius: 4, justifyContent: 'center', alignItems: 'center', gap: 4 },
+  mediaMoreText: { fontSize: 13, fontWeight: '700' },
   convRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 10 },
   convInfo: { flex: 1 },
   convId: { fontSize: 12 },

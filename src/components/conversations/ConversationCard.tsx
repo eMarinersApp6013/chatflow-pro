@@ -1,8 +1,9 @@
 // ConversationCard — WhatsApp-style conversation row with swipe gestures.
 // Swipe RIGHT → opens contact profile.
 // Swipe LEFT  → triggers label action.
+// Long Press  → context menu: Pin, Archive, Mute.
 
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -11,8 +12,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
-import { User, Tag } from 'lucide-react-native';
+import { User, Tag, Pin } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
+import { database } from '../../db/database';
 import Avatar from '../common/Avatar';
 import UnreadBadge from './UnreadBadge';
 import LabelDot from '../common/LabelDot';
@@ -31,6 +33,39 @@ interface Props {
 
 export default function ConversationCard({ conversation, onPress, onLabelPress }: Props) {
   const { colors } = useUIStore();
+
+  const handleLongPress = () => {
+    const isPinned = conversation.isPinned;
+    const isArchived = conversation.isArchived;
+    Alert.alert(
+      conversation.contactName,
+      'Choose an action',
+      [
+        {
+          text: isPinned ? 'Unpin' : '📌 Pin to Top',
+          onPress: async () => {
+            await database.write(async () => {
+              await conversation.update((c) => {
+                c.isPinned = !isPinned;
+                c.pinOrder = isPinned ? null : Date.now();
+              });
+            });
+          },
+        },
+        {
+          text: isArchived ? 'Unarchive' : '🗂 Archive',
+          onPress: async () => {
+            await database.write(async () => {
+              await conversation.update((c) => {
+                c.isArchived = !isArchived;
+              });
+            });
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
   const labels = conversation.labels;
   const hasUnread = conversation.unreadCount > 0;
   const preview = conversation.lastMessageContent
@@ -137,7 +172,7 @@ export default function ConversationCard({ conversation, onPress, onLabelPress }
 
       <GestureDetector gesture={pan}>
         <Animated.View style={rowAnimStyle}>
-          <TouchableOpacity style={s.row} onPress={onPress} activeOpacity={0.65}>
+          <TouchableOpacity style={s.row} onPress={onPress} onLongPress={handleLongPress} activeOpacity={0.65} delayLongPress={400}>
             <Avatar
               name={conversation.contactName}
               uri={conversation.contactAvatar ?? undefined}
@@ -146,6 +181,9 @@ export default function ConversationCard({ conversation, onPress, onLabelPress }
             <View style={s.content}>
               <View style={s.topRow}>
                 <View style={s.nameRow}>
+                  {conversation.isPinned && (
+                    <Pin color={colors.green} size={12} fill={colors.green} />
+                  )}
                   <InboxIcon channel={conversation.channel ?? ''} size={14} />
                   <Text style={s.name} numberOfLines={1}>
                     {conversation.contactName}

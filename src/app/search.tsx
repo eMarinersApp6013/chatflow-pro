@@ -31,10 +31,51 @@ import type MessageModel from '../db/models/MessageModel';
 import type { ChatwootContact } from '../types/chatwoot';
 
 // ─────────────────────────────────────────────────────────────
-// Tab type
+// Fuzzy matching helpers
 // ─────────────────────────────────────────────────────────────
 
 type Tab = 'conversations' | 'contacts' | 'messages';
+
+// Simple edit-distance (Levenshtein) for typo detection
+function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+  );
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  return dp[m][n];
+}
+
+// Returns true if text loosely matches query (substring OR low edit distance on any word)
+function fuzzyMatch(text: string, query: string): boolean {
+  const t = text.toLowerCase();
+  const q = query.toLowerCase();
+  if (t.includes(q)) return true;
+  // Check each word in text against query
+  for (const word of t.split(/\s+/)) {
+    if (word.length >= 3 && q.length >= 3) {
+      const maxDist = q.length <= 4 ? 1 : 2;
+      if (editDistance(word, q) <= maxDist) return true;
+    }
+  }
+  return false;
+}
+
+// Finds the closest word suggestion from a set of candidates
+function bestSuggestion(query: string, candidates: string[]): string | null {
+  const q = query.toLowerCase();
+  let best: string | null = null;
+  let bestDist = 3; // max tolerable distance
+  for (const c of candidates) {
+    const d = editDistance(c.toLowerCase(), q);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+}
 
 // ─────────────────────────────────────────────────────────────
 // Screen
@@ -52,6 +93,7 @@ export default function SearchScreen() {
   const [msgResults, setMsgResults] = useState<MessageModel[]>([]);
   const [contactResults, setContactResults] = useState<ChatwootContact[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [didYouMean, setDidYouMean] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
@@ -66,32 +108,45 @@ export default function SearchScreen() {
       setConvResults([]);
       setMsgResults([]);
       setContactResults([]);
+      setDidYouMean(null);
       setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
+    setDidYouMean(null);
 
     debounceRef.current = setTimeout(async () => {
       const lower = q.toLowerCase();
 
-      // Local conversation search
+      // Local conversation search — exact first, then fuzzy
       const allConvs = await conversationsCollection.query().fetch();
-      const filteredConvs = (allConvs as ConversationModel[]).filter(
+      const exactConvs = (allConvs as ConversationModel[]).filter(
         (c) =>
           c.contactName?.toLowerCase().includes(lower) ||
           c.lastMessageContent?.toLowerCase().includes(lower)
       );
-      setConvResults(filteredConvs.slice(0, 30));
+      const fuzzyConvs = exactConvs.length === 0
+        ? (allConvs as ConversationModel[]).filter(
+            (c) =>
+              fuzzyMatch(c.contactName ?? '', q) ||
+              fuzzyMatch(c.lastMessageContent ?? '', q)
+          )
+        : [];
+      const finalConvs = exactConvs.length > 0 ? exactConvs : fuzzyConvs;
+      setConvResults(finalConvs.slice(0, 30));
 
-      // Local message search
+      // Local message search — exact first, then fuzzy
       const allMsgs = await messagesCollection
         .query(Q.where('content', Q.notEq(null)))
         .fetch();
-      const filteredMsgs = (allMsgs as MessageModel[]).filter((m) =>
+      const exactMsgs = (allMsgs as MessageModel[]).filter((m) =>
         m.content?.toLowerCase().includes(lower)
       );
-      setMsgResults(filteredMsgs.slice(0, 30));
+      const fuzzyMsgs = exactMsgs.length === 0
+        ? (allMsgs as MessageModel[]).filter((m) => fuzzyMatch(m.content ?? '', q))
+        : [];
+      setMsgResults((exactMsgs.length > 0 ? exactMsgs : fuzzyMsgs).slice(0, 30));
 
       // API contact search
       try {
@@ -99,6 +154,13 @@ export default function SearchScreen() {
         setContactResults(contacts.slice(0, 30));
       } catch {
         setContactResults([]);
+      }
+
+      // "Did you mean?" — suggest a name from conversations if no exact matches
+      if (exactConvs.length === 0 && fuzzyConvs.length > 0) {
+        const names = (allConvs as ConversationModel[]).map((c) => c.contactName ?? '').filter(Boolean);
+        const suggestion = bestSuggestion(q, names);
+        setDidYouMean(suggestion);
       }
 
       setIsSearching(false);
@@ -266,6 +328,19 @@ export default function SearchScreen() {
         })}
       </View>
 
+      {/* 🤖 Did you mean? banner */}
+      {didYouMean && !isSearching && (
+        <TouchableOpacity
+          style={[s.didYouMean, { backgroundColor: colors.greenDim, borderColor: colors.green + '44' }]}
+          onPress={() => setQuery(didYouMean)}
+          activeOpacity={0.7}
+        >
+          <Text style={[s.didYouMeanText, { color: colors.green }]}>
+            🤖 Did you mean: <Text style={{ fontWeight: '700' }}>{didYouMean}</Text>?
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {/* Results */}
       {isSearching ? (
         <View style={s.centered}>
@@ -407,4 +482,6 @@ const s = StyleSheet.create({
   msgTs: { fontSize: 11 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   hint: { fontSize: 15 },
+  didYouMean: { marginHorizontal: 12, marginTop: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  didYouMeanText: { fontSize: 14 },
 });
