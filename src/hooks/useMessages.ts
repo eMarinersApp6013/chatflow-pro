@@ -65,7 +65,7 @@ export function useMessages(conversationRemoteId: number) {
                 : null;
               record.isPending = false;
               record.isStarred = false;
-              record.replyToId = null;
+              record.replyToId = (msg as unknown as { reply_to_id?: number }).reply_to_id ?? null;
             })
           );
 
@@ -130,7 +130,7 @@ export function useMessages(conversationRemoteId: number) {
   }, [isOnline, conversationRemoteId]);
 
   // ── Send message — queues if offline, sends immediately if online ──
-  const sendMessage = async (content: string, mode: MessageMode) => {
+  const sendMessage = async (content: string, mode: MessageMode, replyToId?: number) => {
     if (!content.trim()) return;
 
     const isCurrentlyOnline = isOnlineRef.current;
@@ -150,7 +150,7 @@ export function useMessages(conversationRemoteId: number) {
         msg.createdAt = Math.floor(Date.now() / 1000);
         msg.isPending = isCurrentlyOnline; // pending = awaiting server confirmation
         msg.isStarred = false;
-        msg.replyToId = null;
+        msg.replyToId = replyToId ?? null;
       });
       localId = record.id;
     });
@@ -167,6 +167,7 @@ export function useMessages(conversationRemoteId: number) {
         content,
         message_type: 'outgoing',
         private: mode === 'note',
+        ...(replyToId ? { reply_to_id: replyToId } : {}),
       };
       const confirmed = await chatService.sendMessage(conversationRemoteId, payload);
 

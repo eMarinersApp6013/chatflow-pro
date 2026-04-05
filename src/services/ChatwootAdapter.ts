@@ -277,6 +277,61 @@ export class ChatwootAdapter extends ChatService {
       // Non-critical — silently ignore if it fails
     }
   }
+
+  async reactToMessage(conversationId: number, messageId: number, emoji: string): Promise<void> {
+    try {
+      await this.request<void>(
+        API.MESSAGE_REACTION(this.accountId, conversationId, messageId),
+        { method: 'POST', body: JSON.stringify({ emoji }) }
+      );
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }
+
+  async createCannedResponse(shortCode: string, content: string): Promise<{ id: number; short_code: string; content: string }> {
+    return this.request<{ id: number; short_code: string; content: string }>(
+      API.CANNED_RESPONSE_CREATE(this.accountId),
+      { method: 'POST', body: JSON.stringify({ short_code: shortCode, content }) }
+    );
+  }
+
+  async updateCannedResponse(id: number, shortCode: string, content: string): Promise<void> {
+    await this.request<void>(
+      API.CANNED_RESPONSE_UPDATE(this.accountId, id),
+      { method: 'PUT', body: JSON.stringify({ short_code: shortCode, content }) }
+    );
+  }
+
+  async deleteCannedResponse(id: number): Promise<void> {
+    await this.request<void>(
+      API.CANNED_RESPONSE_DELETE(this.accountId, id),
+      { method: 'DELETE' }
+    );
+  }
+
+  async createLabel(title: string, color: string, description?: string): Promise<ChatwootLabel> {
+    const data = await this.request<{ payload: ChatwootLabel }>(
+      API.LABEL_CREATE(this.accountId),
+      { method: 'POST', body: JSON.stringify({ title, color, description: description ?? '' }) }
+    );
+    return data.payload;
+  }
+
+  async updateLabel(id: number, title: string, color: string, description?: string): Promise<ChatwootLabel> {
+    const data = await this.request<{ payload: ChatwootLabel }>(
+      API.LABEL_UPDATE(this.accountId, id),
+      { method: 'PUT', body: JSON.stringify({ title, color, description: description ?? '' }) }
+    );
+    return data.payload;
+  }
+
+  async deleteLabel(id: number): Promise<void> {
+    await this.request<void>(
+      API.LABEL_DELETE(this.accountId, id),
+      { method: 'DELETE' }
+    );
+  }
 }
 
 // Singleton adapter instance shared across the app

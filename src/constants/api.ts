@@ -52,6 +52,26 @@ export const API = {
   WHATSAPP_TEMPLATES: (accountId: number, inboxId: number) =>
     `/api/v1/accounts/${accountId}/inboxes/${inboxId}/whatsapp_templates`,
 
+  // Message reaction
+  MESSAGE_REACTION: (accountId: number, conversationId: number, messageId: number) =>
+    `/api/v1/accounts/${accountId}/conversations/${conversationId}/messages/${messageId}/create_reaction`,
+
+  // Canned responses CRUD
+  CANNED_RESPONSE_CREATE: (accountId: number) =>
+    `/api/v1/accounts/${accountId}/canned_responses`,
+  CANNED_RESPONSE_UPDATE: (accountId: number, id: number) =>
+    `/api/v1/accounts/${accountId}/canned_responses/${id}`,
+  CANNED_RESPONSE_DELETE: (accountId: number, id: number) =>
+    `/api/v1/accounts/${accountId}/canned_responses/${id}`,
+
+  // Labels CRUD
+  LABEL_CREATE: (accountId: number) =>
+    `/api/v1/accounts/${accountId}/labels`,
+  LABEL_UPDATE: (accountId: number, id: number) =>
+    `/api/v1/accounts/${accountId}/labels/${id}`,
+  LABEL_DELETE: (accountId: number, id: number) =>
+    `/api/v1/accounts/${accountId}/labels/${id}`,
+
   // Reports
   REPORTS: (accountId: number) =>
     `/api/v1/accounts/${accountId}/reports`,

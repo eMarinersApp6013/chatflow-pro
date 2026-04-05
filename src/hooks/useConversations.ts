@@ -1,7 +1,7 @@
 // useConversations — live conversation list from WatermelonDB + background API sync.
 // Uses WatermelonDB's observe() to auto-update when DB changes.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { conversationsCollection } from '../db/database';
 import { chatService } from '../services/ChatwootAdapter';
@@ -20,8 +20,12 @@ export function useConversations() {
 
   // Subscribe to live DB changes — re-renders automatically when data changes
   useEffect(() => {
-    const query = conversationsCollection
-      .query(Q.where('status', filters.status), Q.sortBy('last_activity_at', Q.desc));
+    const query = conversationsCollection.query(
+      Q.where('status', filters.status),
+      Q.where('is_archived', false),
+      Q.sortBy('is_pinned', Q.desc),      // pinned conversations first
+      Q.sortBy('last_activity_at', Q.desc)
+    );
 
     const subscription = query.observe().subscribe({
       next: (records) => setConversations(records as ConversationModel[]),
@@ -50,12 +54,19 @@ export function useConversations() {
     }
   };
 
+  // Track last sync time per filter key to avoid redundant syncs on tab switches
+  const lastSyncRef = useRef<Map<string, number>>(new Map());
+
   useEffect(() => {
-    if (isLoggedIn) {
-      sync();
-    }
+    if (!isLoggedIn) return;
+    const key = `${filters.status}:${filters.assigneeType ?? 'all'}`;
+    const lastSync = lastSyncRef.current.get(key) ?? 0;
+    const STALE_MS = 30_000; // 30 seconds
+    if (Date.now() - lastSync < STALE_MS) return; // Skip — recently synced
+    lastSyncRef.current.set(key, Date.now());
+    sync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn, filters.status]);
+  }, [isLoggedIn, filters.status, filters.assigneeType]);
 
   return { conversations, isSyncing, syncError, refetch: sync };
 }

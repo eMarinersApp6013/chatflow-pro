@@ -124,6 +124,7 @@ export interface ChatwootSendMessagePayload {
   message_type?: 'outgoing';
   private?: boolean;
   content_type?: string;
+  reply_to_id?: number;  // for threaded replies
 }
 
 export interface ChatwootWebSocketEvent {

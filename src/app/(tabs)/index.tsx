@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Search, MessageSquarePlus } from 'lucide-react-native';
+import { Search, Archive } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useUIStore } from '../../store/uiStore';
@@ -29,6 +29,8 @@ import ConversationCard from '../../components/conversations/ConversationCard';
 import FilterChips from '../../components/conversations/FilterChips';
 import EmptyState from '../../components/common/EmptyState';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
+import { TaskChecklist } from '../../components/common/TaskChecklist';
+import { ConversationListSkeleton } from '../../components/conversations/ConversationCardSkeleton';
 
 import ConversationModel from '../../db/models/ConversationModel';
 import type { StatusFilter, FilterTab } from '../../types/app';
@@ -131,6 +133,15 @@ export default function ChatsScreen() {
     syncText: { color: colors.green, fontSize: 13 },
     errorBar: { backgroundColor: '#3d1a1a', paddingHorizontal: 16, paddingVertical: 6 },
     errorText: { color: colors.danger, fontSize: 13 },
+    archivedRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 14,
+      borderTopWidth: 0.5,
+    },
+    archivedText: { fontSize: 14, fontWeight: '500' },
   });
 
   const renderItem = useCallback(
@@ -240,12 +251,6 @@ export default function ChatsScreen() {
       <ConnectionStatus />
 
       {/* ── Sync bars ── */}
-      {isSyncing && conversations.length === 0 && (
-        <View style={s.syncBar}>
-          <ActivityIndicator color={colors.green} size="small" />
-          <Text style={s.syncText}>Syncing conversations…</Text>
-        </View>
-      )}
       {syncError && (
         <View style={s.errorBar}>
           <Text style={s.errorText}>Sync error: {syncError}</Text>
@@ -266,13 +271,30 @@ export default function ChatsScreen() {
             colors={[colors.green]}
           />
         }
+        ListHeaderComponent={
+          <TaskChecklist />
+        }
         ListEmptyComponent={
-          !isSyncing ? (
+          isSyncing ? (
+            <ConversationListSkeleton count={8} />
+          ) : (
             <EmptyState
               icon="message-circle"
               title="No conversations"
               description="Your Chatwoot conversations will appear here after syncing."
             />
+          )
+        }
+        ListFooterComponent={
+          conversations.length > 0 ? (
+            <TouchableOpacity
+              style={[s.archivedRow, { borderTopColor: colors.border }]}
+              onPress={() => router.push('/archived')}
+              activeOpacity={0.7}
+            >
+              <Archive color={colors.textDim} size={18} />
+              <Text style={[s.archivedText, { color: colors.textDim }]}>Archived chats</Text>
+            </TouchableOpacity>
           ) : null
         }
         windowSize={10}

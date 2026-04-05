@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { router } from 'expo-router';
-import { LogOut, Moon, Sun, Server, Info, Bell, Trash2, Wifi } from 'lucide-react-native';
+import { LogOut, Moon, Sun, Server, Info, Bell, Trash2, Wifi, BarChart2, MessageSquareText, Tag, ChevronRight } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -236,6 +236,28 @@ export default function SettingsScreen() {
             </View>
           </View>
         )}
+
+        {/* Quick links */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Features</Text>
+          <View style={s.card}>
+            <TouchableOpacity style={s.row} onPress={() => router.push('/dashboard')} activeOpacity={0.7}>
+              <BarChart2 color={colors.textDim} size={20} />
+              <Text style={s.rowLabel}>Dashboard & Analytics</Text>
+              <ChevronRight color={colors.textDim2} size={16} />
+            </TouchableOpacity>
+            <TouchableOpacity style={s.row} onPress={() => router.push('/settings/canned-responses')} activeOpacity={0.7}>
+              <MessageSquareText color={colors.textDim} size={20} />
+              <Text style={s.rowLabel}>Canned Responses</Text>
+              <ChevronRight color={colors.textDim2} size={16} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.row, s.rowLast]} onPress={() => router.push('/settings/labels')} activeOpacity={0.7}>
+              <Tag color={colors.textDim} size={20} />
+              <Text style={s.rowLabel}>Labels</Text>
+              <ChevronRight color={colors.textDim2} size={16} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Availability */}
         <View style={s.section}>
