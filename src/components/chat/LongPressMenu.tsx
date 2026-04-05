@@ -1,5 +1,7 @@
 // LongPressMenu — animated bottom-sheet context menu triggered by long-pressing a message.
-// Options: Copy, Reply, Star/Unstar, Delete. Slides up from bottom with dim overlay.
+// Options: Copy, Reply, Forward, Star/Unstar, Delete. Slides up from bottom with dim overlay.
+// IMPORTANT: ALL StyleSheet.create calls are outside the component to prevent re-creation on
+// every render (which caused StyleSheet ID overflow and crashes).
 
 import { useEffect } from 'react';
 import {
@@ -17,9 +19,8 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
   withTiming,
-  runOnJS,
 } from 'react-native-reanimated';
-import { Copy, Forward, Reply, Star, Trash2, X } from 'lucide-react-native';
+import { Copy, Forward, Reply, Star, Trash2 } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
 import type MessageModel from '../../db/models/MessageModel';
 
@@ -34,15 +35,36 @@ interface Props {
   onReact?: (emoji: string) => void;
 }
 
+// ── Static styles (layout / size only — no colors) ────────────────────────
+const styles = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingBottom: 34, overflow: 'hidden',
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginTop: 10, marginBottom: 4,
+  },
+  preview: { paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1 },
+  previewText: { fontSize: 13, lineHeight: 18 },
+  emojiRow: {
+    flexDirection: 'row', justifyContent: 'space-around',
+    paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  emojiBtn: { padding: 6 },
+  emoji: { fontSize: 26 },
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16, gap: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowLabel: { fontSize: 16 },
+});
+
 export default function LongPressMenu({
-  message,
-  visible,
-  onClose,
-  onReply,
-  onForward,
-  onStar,
-  onDelete,
-  onReact,
+  message, visible, onClose, onReply, onForward, onStar, onDelete, onReact,
 }: Props) {
   const { colors } = useUIStore();
   const translateY = useSharedValue(300);
@@ -58,180 +80,62 @@ export default function LongPressMenu({
     }
   }, [visible]);
 
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-  const overlayStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
+  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const overlayStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   if (!message) return null;
 
-  const handleCopy = () => {
-    if (message.content) {
-      Clipboard.setString(message.content);
-    }
-    onClose();
-  };
-
+  const handleCopy = () => { if (message.content) Clipboard.setString(message.content); onClose(); };
   const handleReply = () => { onReply(message); onClose(); };
   const handleStar = () => { onStar(message); onClose(); };
-
   const handleDelete = () => {
     onClose();
-    Alert.alert(
-      'Delete message',
-      'This will delete the message for everyone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => onDelete(message) },
-      ]
-    );
+    Alert.alert('Delete message', 'This will delete the message for everyone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDelete(message) },
+    ]);
   };
 
-  // Message preview shown at the top of the sheet
   const preview = message.content
-    ? message.content.length > 80
-      ? message.content.slice(0, 80) + '…'
-      : message.content
-    : message.attachments.length > 0
-    ? '📎 Attachment'
-    : '';
-
-  const s = StyleSheet.create({
-    overlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    sheet: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      paddingBottom: 34,
-      overflow: 'hidden',
-    },
-    handle: {
-      width: 36,
-      height: 4,
-      backgroundColor: colors.border,
-      borderRadius: 2,
-      alignSelf: 'center',
-      marginTop: 10,
-      marginBottom: 4,
-    },
-    preview: {
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      backgroundColor: colors.surface2,
-    },
-    previewText: { fontSize: 13, color: colors.textDim, lineHeight: 18 },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      gap: 16,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    rowLabel: { fontSize: 16, color: colors.text },
-    deleteLabel: { color: colors.danger },
-    starredLabel: { color: colors.yellow },
-  });
-
-  const reactionStyles = StyleSheet.create({
-    emojiRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      paddingVertical: 10,
-      paddingHorizontal: 8,
-      borderBottomWidth: 0.5,
-    },
-    emojiBtn: { padding: 6 },
-    emoji: { fontSize: 24 },
-  });
+    ? message.content.length > 80 ? message.content.slice(0, 80) + '…' : message.content
+    : message.attachments.length > 0 ? '📎 Attachment' : '';
 
   const actions = [
-    {
-      icon: <Copy color={colors.textDim} size={20} />,
-      label: 'Copy',
-      onPress: handleCopy,
-      show: !!message.content,
-    },
-    {
-      icon: <Reply color={colors.textDim} size={20} />,
-      label: 'Reply',
-      onPress: handleReply,
-      show: true,
-    },
-    {
-      icon: <Forward color={colors.textDim} size={20} />,
-      label: 'Forward',
-      onPress: () => { if (onForward) { onForward(message); } onClose(); },
-      show: !!message.content,
-    },
-    {
-      icon: <Star color={message.isStarred ? colors.yellow : colors.textDim} size={20} fill={message.isStarred ? colors.yellow : 'transparent'} />,
-      label: message.isStarred ? 'Unstar' : 'Star',
-      onPress: handleStar,
-      show: true,
-      labelStyle: message.isStarred ? s.starredLabel : undefined,
-    },
-    {
-      icon: <Trash2 color={colors.danger} size={20} />,
-      label: 'Delete',
-      onPress: handleDelete,
-      show: message.isOutgoing,
-      labelStyle: s.deleteLabel,
-    },
+    { icon: <Copy color={colors.textDim} size={20} />, label: 'Copy', onPress: handleCopy, show: !!message.content, labelColor: colors.text },
+    { icon: <Reply color={colors.textDim} size={20} />, label: 'Reply', onPress: handleReply, show: true, labelColor: colors.text },
+    { icon: <Forward color={colors.textDim} size={20} />, label: 'Forward', onPress: () => { if (onForward) onForward(message); onClose(); }, show: !!message.content, labelColor: colors.text },
+    { icon: <Star color={message.isStarred ? colors.yellow : colors.textDim} size={20} fill={message.isStarred ? colors.yellow : 'transparent'} />, label: message.isStarred ? 'Unstar' : 'Star', onPress: handleStar, show: true, labelColor: message.isStarred ? colors.yellow : colors.text },
+    { icon: <Trash2 color={colors.danger} size={20} />, label: 'Delete', onPress: handleDelete, show: message.isOutgoing, labelColor: colors.danger },
   ].filter((a) => a.show);
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
-        <Animated.View style={[s.overlay, overlayStyle]} />
+        <Animated.View style={[styles.overlay, overlayStyle]} />
       </TouchableWithoutFeedback>
 
-      <Animated.View style={[s.sheet, sheetStyle]}>
-        <View style={s.handle} />
+      <Animated.View style={[styles.sheet, { backgroundColor: colors.surface }, sheetStyle]}>
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-        {/* Quick reaction emoji row */}
-        <View style={[reactionStyles.emojiRow, { borderBottomColor: colors.border }]}>
+        {/* Quick emoji reactions */}
+        <View style={[styles.emojiRow, { borderBottomColor: colors.border }]}>
           {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => (
-            <TouchableOpacity
-              key={emoji}
-              style={reactionStyles.emojiBtn}
-              onPress={() => {
-                onReact?.(emoji);
-                onClose();
-              }}
-            >
-              <Text style={reactionStyles.emoji}>{emoji}</Text>
+            <TouchableOpacity key={emoji} style={styles.emojiBtn} onPress={() => { onReact?.(emoji); onClose(); }}>
+              <Text style={styles.emoji}>{emoji}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {preview ? (
-          <View style={s.preview}>
-            <Text style={s.previewText} numberOfLines={3}>{preview}</Text>
+          <View style={[styles.preview, { borderBottomColor: colors.border, backgroundColor: colors.surface2 }]}>
+            <Text style={[styles.previewText, { color: colors.textDim }]} numberOfLines={3}>{preview}</Text>
           </View>
         ) : null}
 
         {actions.map((action) => (
-          <TouchableOpacity
-            key={action.label}
-            style={s.row}
-            onPress={action.onPress}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity key={action.label} style={[styles.row, { borderBottomColor: colors.border }]} onPress={action.onPress} activeOpacity={0.7}>
             {action.icon}
-            <Text style={[s.rowLabel, action.labelStyle]}>{action.label}</Text>
+            <Text style={[styles.rowLabel, { color: action.labelColor }]}>{action.label}</Text>
           </TouchableOpacity>
         ))}
       </Animated.View>

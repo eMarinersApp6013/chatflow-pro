@@ -262,7 +262,7 @@ export default function SearchScreen() {
     [colors]
   );
 
-  const paddingTop = Platform.OS === 'ios' ? insets.top : 8;
+  const paddingTop = insets.top + (Platform.OS === 'android' ? 4 : 0);
 
   // ── Count badges ───────────────────────────────────────────
   const counts: Record<Tab, number> = {

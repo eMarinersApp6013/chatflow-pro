@@ -28,12 +28,21 @@ export function useConversations() {
     );
 
     const subscription = query.observe().subscribe({
-      next: (records) => setConversations(records as ConversationModel[]),
+      next: (records) => {
+        let result = records as ConversationModel[];
+        // Label filter — WatermelonDB can't query JSON arrays; filter in JS
+        if (filters.labels && filters.labels.length > 0) {
+          result = result.filter((c) =>
+            filters.labels.some((label) => c.labels.includes(label))
+          );
+        }
+        setConversations(result);
+      },
       error: (err) => console.error('[useConversations] observe error:', err),
     });
 
     return () => subscription.unsubscribe();
-  }, [filters.status]);
+  }, [filters.status, filters.labels]);
 
   // Background sync from Chatwoot API
   const sync = async () => {

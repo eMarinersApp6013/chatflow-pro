@@ -18,6 +18,7 @@ import {
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Plus, Edit2, Trash2, X, Check } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
+import { useAuthStore } from '../../store/authStore';
 import { chatService } from '../../services/ChatwootAdapter';
 
 interface CannedResponse {
@@ -28,6 +29,7 @@ interface CannedResponse {
 
 export default function CannedResponsesScreen() {
   const { colors } = useUIStore();
+  const { credentials } = useAuthStore();
   const router = useRouter();
 
   const [responses, setResponses] = useState<CannedResponse[]>([]);
@@ -41,6 +43,10 @@ export default function CannedResponsesScreen() {
   const [content, setContent] = useState('');
 
   const loadResponses = useCallback(async () => {
+    if (!credentials) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await chatService.getCannedResponses('');
@@ -50,7 +56,7 @@ export default function CannedResponsesScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [credentials]);
 
   useEffect(() => {
     loadResponses();

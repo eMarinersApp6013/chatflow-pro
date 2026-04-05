@@ -317,7 +317,7 @@ export default function TemplatesScreen() {
     [colors]
   );
 
-  const paddingTop = Platform.OS === 'ios' ? insets.top : 8;
+  const paddingTop = insets.top + (Platform.OS === 'android' ? 4 : 0);
 
   return (
     <View style={[s.container, { backgroundColor: colors.bg }]}>
@@ -384,7 +384,7 @@ export default function TemplatesScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={[s.catRow, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 8, alignItems: 'center' }}
       >
         {categories.map((cat) => {
           const active = activeCategory === cat;
@@ -469,7 +469,7 @@ const s = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
   catRow: { borderBottomWidth: 1 },
-  catChip: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1 },
+  catChip: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, height: 34, justifyContent: 'center', alignSelf: 'center' },
   listContent: { padding: 12, gap: 10 },
   card: {
     borderRadius: 14, borderWidth: 1, padding: 14,

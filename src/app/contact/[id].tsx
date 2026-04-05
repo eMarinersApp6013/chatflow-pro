@@ -111,9 +111,8 @@ export default function ContactScreen() {
       // Use a plain object matching the Contact shape — dynamic import means we can't use Contacts.Contact type
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const newContact: any = {
-        contactType: 'person',
         name: contact.name,
-        firstName: nameParts[0],
+        firstName: nameParts[0] || undefined,
         lastName: nameParts.slice(1).join(' ') || undefined,
       };
       if (contact.phone_number) {
@@ -124,8 +123,8 @@ export default function ContactScreen() {
       }
       await Contacts.addContactAsync(newContact);
       Alert.alert('Saved!', `${contact.name} has been saved to your contacts.`);
-    } catch {
-      Alert.alert('Error', 'Could not save contact. Please try again.');
+    } catch (err) {
+      Alert.alert('Error', `Could not save contact: ${err instanceof Error ? err.message : 'Please try again.'}`);
     } finally {
       setSavingContact(false);
     }
@@ -161,14 +160,14 @@ export default function ContactScreen() {
           <View style={[s.profileCard, { backgroundColor: colors.surface }]}>
             <Avatar name={contact.name} uri={contact.avatar_url ?? undefined} size={96} />
             <Text style={[s.contactName, { color: colors.text }]}>{contact.name}</Text>
+            {contact.phone_number ? (
+              <Text style={[s.contactPhone, { color: colors.green }]}>{contact.phone_number}</Text>
+            ) : null}
             {contact.identifier ? (
               <Text style={[s.contactIdentifier, { color: colors.textDim2 }]}>ID: {contact.identifier}</Text>
             ) : null}
             {contact.email ? (
               <Text style={[s.contactMeta, { color: colors.textDim }]}>{contact.email}</Text>
-            ) : null}
-            {contact.phone_number ? (
-              <Text style={[s.contactMeta, { color: colors.textDim }]}>{contact.phone_number}</Text>
             ) : null}
           </View>
 
@@ -328,6 +327,7 @@ const s = StyleSheet.create({
   scroll: { paddingBottom: 40 },
   profileCard: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 24, marginBottom: 2 },
   contactName: { fontSize: 22, fontWeight: '700', marginTop: 14, marginBottom: 4 },
+  contactPhone: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
   contactIdentifier: { fontSize: 12, marginTop: 2, marginBottom: 2 },
   contactMeta: { fontSize: 14, marginTop: 2 },
   actionsRow: {

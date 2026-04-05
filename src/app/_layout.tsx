@@ -2,7 +2,8 @@
 // Phase 6: added Toast overlay for non-blocking notifications.
 
 import { useEffect } from 'react';
-import { View, AppState, AppStateStatus } from 'react-native';
+import { View, AppState, AppStateStatus, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -45,6 +46,18 @@ export default function RootLayout() {
         shouldSetBadge: true,
       }),
     });
+  }, []);
+
+  // Request push notification permissions on first launch and save token
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    Notifications.requestPermissionsAsync().then(({ status }) => {
+      if (status === 'granted') {
+        Notifications.getExpoPushTokenAsync()
+          .then((token) => AsyncStorage.setItem('pushToken', token.data))
+          .catch(() => {});
+      }
+    }).catch(() => {});
   }, []);
 
   // Reconnect WebSocket when app returns to foreground so chats refresh immediately

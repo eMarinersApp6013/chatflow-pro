@@ -2,7 +2,7 @@
 // Real-time via WatermelonDB observe() + background API sync.
 // Phase 4: added inbox filter row below status/assignee chips.
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useConnectionStore } from '../../store/connectionStore';
 import { useConversations } from '../../hooks/useConversations';
 import { useInboxes } from '../../hooks/useInboxes';
+import { useLabels } from '../../hooks/useLabels';
 import { wsService } from '../../services/WebSocketService';
 
 import ConversationCard from '../../components/conversations/ConversationCard';
@@ -74,7 +75,16 @@ export default function ChatsScreen() {
   const { setConnectionState } = useConnectionStore();
   const { conversations, isSyncing, syncError, refetch } = useConversations();
   const { inboxes } = useInboxes();
+  const { labels } = useLabels();
   const insets = useSafeAreaInsets();
+
+  // Track first load to show skeleton only once, not on every filter change
+  const hasEverLoadedRef = useRef(false);
+  useEffect(() => {
+    if (conversations.length > 0 || (!isSyncing && hasEverLoadedRef.current === false)) {
+      hasEverLoadedRef.current = true;
+    }
+  }, [conversations.length, isSyncing]);
 
   // Wire WebSocket connection state → store so ConnectionStatus banner updates
   useEffect(() => {
@@ -121,7 +131,19 @@ export default function ChatsScreen() {
       gap: 4,
     },
     inboxChipText: { fontSize: 12, fontWeight: '600' },
+    labelChip: {
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderWidth: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    labelDot: { width: 8, height: 8, borderRadius: 4 },
+    labelChipText: { fontSize: 12, fontWeight: '600' },
     listContent: { paddingBottom: 16 },
+    syncProgressBar: { height: 3, backgroundColor: colors.green },
     syncBar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -246,11 +268,56 @@ export default function ChatsScreen() {
             </ScrollView>
           </View>
         )}
+
+        {/* Label filter chips — WhatsApp Business style */}
+        {labels.length > 0 && (
+          <View style={s.inboxRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.inboxScroll}
+            >
+              {labels.map((label) => {
+                const active = filters.labels?.includes(label.title) ?? false;
+                return (
+                  <TouchableOpacity
+                    key={label.id}
+                    style={[
+                      s.labelChip,
+                      {
+                        backgroundColor: active ? label.color + '33' : colors.surface2,
+                        borderColor: active ? label.color : colors.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      const current = filters.labels ?? [];
+                      const next = active
+                        ? current.filter((l) => l !== label.title)
+                        : [...current, label.title];
+                      setFilters({ labels: next });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[s.labelDot, { backgroundColor: label.color }]} />
+                    <Text style={[s.labelChipText, { color: active ? label.color : colors.textDim }]}>
+                      {label.title}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       <ConnectionStatus />
 
-      {/* ── Sync bars ── */}
+      {/* Thin sync progress bar — shows while syncing after initial load */}
+      {isSyncing && hasEverLoadedRef.current && (
+        <View style={s.syncProgressBar} />
+      )}
+
+      {/* ── Sync error bar ── */}
       {syncError && (
         <View style={s.errorBar}>
           <Text style={s.errorText}>Sync error: {syncError}</Text>
@@ -275,7 +342,7 @@ export default function ChatsScreen() {
           <TaskChecklist />
         }
         ListEmptyComponent={
-          isSyncing ? (
+          isSyncing && !hasEverLoadedRef.current ? (
             <ConversationListSkeleton count={8} />
           ) : (
             <EmptyState

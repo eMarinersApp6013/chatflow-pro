@@ -35,8 +35,8 @@ export default function ConversationCard({ conversation, onPress, onLabelPress }
   const { colors } = useUIStore();
 
   const handleLongPress = () => {
-    const isPinned = conversation.isPinned;
-    const isArchived = conversation.isArchived;
+    const isPinned = conversation.isPinned ?? false;
+    const isArchived = conversation.isArchived ?? false;
     Alert.alert(
       conversation.contactName,
       'Choose an action',
@@ -181,7 +181,7 @@ export default function ConversationCard({ conversation, onPress, onLabelPress }
             <View style={s.content}>
               <View style={s.topRow}>
                 <View style={s.nameRow}>
-                  {conversation.isPinned && (
+                  {(conversation.isPinned ?? false) && (
                     <Pin color={colors.green} size={12} fill={colors.green} />
                   )}
                   <InboxIcon channel={conversation.channel ?? ''} size={14} />

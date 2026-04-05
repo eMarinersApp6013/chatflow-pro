@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Archive } from 'lucide-react-native';
 import { useUIStore } from '../store/uiStore';
 import { useArchivedConversations } from '../hooks/useArchivedConversations';
-import { ConversationCard } from '../components/conversations/ConversationCard';
+import ConversationCard from '../components/conversations/ConversationCard';
 import ConversationModel from '../db/models/ConversationModel';
 
 export default function ArchivedScreen() {

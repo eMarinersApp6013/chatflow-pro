@@ -311,19 +311,20 @@ export class ChatwootAdapter extends ChatService {
   }
 
   async createLabel(title: string, color: string, description?: string): Promise<ChatwootLabel> {
-    const data = await this.request<{ payload: ChatwootLabel }>(
+    const data = await this.request<ChatwootLabel | { payload: ChatwootLabel }>(
       API.LABEL_CREATE(this.accountId),
       { method: 'POST', body: JSON.stringify({ title, color, description: description ?? '' }) }
     );
-    return data.payload;
+    // Chatwoot may return the label directly or wrapped in { payload }
+    return ('payload' in data ? data.payload : data) as ChatwootLabel;
   }
 
   async updateLabel(id: number, title: string, color: string, description?: string): Promise<ChatwootLabel> {
-    const data = await this.request<{ payload: ChatwootLabel }>(
+    const data = await this.request<ChatwootLabel | { payload: ChatwootLabel }>(
       API.LABEL_UPDATE(this.accountId, id),
       { method: 'PUT', body: JSON.stringify({ title, color, description: description ?? '' }) }
     );
-    return data.payload;
+    return ('payload' in data ? data.payload : data) as ChatwootLabel;
   }
 
   async deleteLabel(id: number): Promise<void> {

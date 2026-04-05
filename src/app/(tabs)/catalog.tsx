@@ -387,7 +387,7 @@ export default function CatalogScreen() {
               🎤 Voice Search
             </Text>
             <Text style={{ fontSize: 13, color: colors.textDim, marginBottom: 12 }}>
-              Tap the mic icon on your keyboard to speak, or type your search:
+              Type your product search below:
             </Text>
             <TextInput
               autoFocus
@@ -474,7 +474,7 @@ const s = StyleSheet.create({
   sectionEmoji: { fontSize: 18 },
   sectionTitle: { fontSize: 16, fontWeight: '700', flex: 1 },
   horizList: { paddingHorizontal: 8 },
-  horizCard: { width: 170 },
+  horizCard: { width: 160, height: 230, overflow: 'hidden' },
   cartPreview: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: 12, marginTop: 16, borderRadius: 12,

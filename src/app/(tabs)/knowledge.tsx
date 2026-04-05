@@ -2,7 +2,7 @@
 // Articles are static seed data displayed from a local array.
 
 import { useState, useMemo } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, FlatList, ScrollView, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { BookOpen, Search, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
 import { knowledgeArticles, knowledgeCategories, type KnowledgeArticle } from '../../data/knowledgeBase';
@@ -79,16 +79,16 @@ export default function KnowledgeScreen() {
       </View>
 
       {/* Category chips */}
-      <FlatList
+      <ScrollView
         horizontal
-        data={knowledgeCategories}
-        keyExtractor={(item) => item}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.chips}
-        renderItem={({ item: cat }) => {
+      >
+        {knowledgeCategories.map((cat) => {
           const active = cat === selectedCategory;
           return (
             <TouchableOpacity
+              key={cat}
               style={[
                 styles.chip,
                 {
@@ -101,8 +101,8 @@ export default function KnowledgeScreen() {
               <Text style={[styles.chipText, { color: active ? '#fff' : colors.textDim }]}>{cat}</Text>
             </TouchableOpacity>
           );
-        }}
-      />
+        })}
+      </ScrollView>
 
       {/* Articles */}
       {filtered.length === 0 ? (
