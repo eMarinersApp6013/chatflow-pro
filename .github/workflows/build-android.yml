@@ -65,6 +65,24 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      # Lint runs before the APK build. assembleRelease uses -x lint so this is
+      # the single authoritative lint execution. abortOnError is true by default
+      # in Android Gradle — the step fails on Error/Fatal severity issues only;
+      # warnings are reported but do not break the build.
+      - name: Run Android Lint
+        run: cd android && ./gradlew lintRelease --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx3g"
+
+      # Upload even when lint fails so the report is always downloadable
+      - name: Upload Lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: android/app/build/reports/lint-results-release.html
+          retention-days: 3
+
       # Generate a keystore for signing (reuse across builds via secret, or generate fresh each time for test builds)
       - name: Generate debug keystore for signing
         run: |
