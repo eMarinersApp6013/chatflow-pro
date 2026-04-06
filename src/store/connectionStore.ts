@@ -1,4 +1,5 @@
 // connectionStore — tracks WebSocket connectivity and per-conversation typing state.
+// Record<number, TypingUser[]> instead of Map — Map is not serializable in Zustand.
 
 import { create } from 'zustand';
 import type { ConnectionState } from '../types/app';
@@ -10,8 +11,8 @@ interface TypingUser {
 
 interface ConnectionStoreState {
   connectionState: ConnectionState;
-  // Map of conversationId → list of currently-typing users
-  typingByConversation: Map<number, TypingUser[]>;
+  // Record instead of Map — serializable, works with Zustand DevTools
+  typingByConversation: Record<number, TypingUser[]>;
 
   setConnectionState: (state: ConnectionState) => void;
   setTyping: (conversationId: number, user: TypingUser) => void;
@@ -21,27 +22,30 @@ interface ConnectionStoreState {
 
 export const useConnectionStore = create<ConnectionStoreState>((set, get) => ({
   connectionState: 'disconnected',
-  typingByConversation: new Map(),
+  typingByConversation: {},
 
   setConnectionState: (connectionState) => set({ connectionState }),
 
-  setTyping: (conversationId, user) => {
-    const map = new Map(get().typingByConversation);
-    const existing = map.get(conversationId) ?? [];
-    // Replace if same userId already present, otherwise append
-    const updated = existing.filter((u) => u.userId !== user.userId);
-    map.set(conversationId, [...updated, user]);
-    set({ typingByConversation: map });
-  },
+  setTyping: (conversationId, user) => set((state) => ({
+    typingByConversation: {
+      ...state.typingByConversation,
+      [conversationId]: [
+        ...(state.typingByConversation[conversationId] ?? []).filter((u) => u.userId !== user.userId),
+        user,
+      ],
+    },
+  })),
 
-  clearTyping: (conversationId, userId) => {
-    const map = new Map(get().typingByConversation);
-    const existing = map.get(conversationId) ?? [];
-    map.set(conversationId, existing.filter((u) => u.userId !== userId));
-    set({ typingByConversation: map });
-  },
+  clearTyping: (conversationId, userId) => set((state) => ({
+    typingByConversation: {
+      ...state.typingByConversation,
+      [conversationId]: (state.typingByConversation[conversationId] ?? []).filter(
+        (u) => u.userId !== userId
+      ),
+    },
+  })),
 
   getTypingUsers: (conversationId) => {
-    return get().typingByConversation.get(conversationId) ?? [];
+    return get().typingByConversation[conversationId] ?? [];
   },
 }));

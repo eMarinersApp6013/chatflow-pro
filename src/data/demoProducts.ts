@@ -20,9 +20,11 @@ export const demoBundles: Bundle[] = [
 
 export const categories: string[] = ['All', 'Uniforms', 'Safety', 'Accessories', 'Footwear', 'Instruments'];
 
+// 2-digit prefixes for accurate Indian pincode zone detection
+// (1-digit was too broad — '1' alone matches Delhi AND HP AND Haryana with different delivery times)
 export const shippingRates: ShippingZone[] = [
-  { zone: 'North', prefix: ['1', '2'], couriers: [{ name: 'Shiprocket', days: '3-4', prepaid: 85, cod: 125 }, { name: 'Delhivery', days: '4-5', prepaid: 70, cod: 110 }] },
-  { zone: 'South', prefix: ['5', '6'], couriers: [{ name: 'Shiprocket', days: '4-5', prepaid: 99, cod: 140 }, { name: 'Delhivery', days: '5-6', prepaid: 85, cod: 130 }] },
-  { zone: 'East', prefix: ['7', '8'], couriers: [{ name: 'Shiprocket', days: '4-5', prepaid: 105, cod: 150 }, { name: 'DTDC', days: '5-7', prepaid: 90, cod: 135 }] },
-  { zone: 'West', prefix: ['3', '4'], couriers: [{ name: 'Shiprocket', days: '3-4', prepaid: 90, cod: 130 }, { name: 'Delhivery', days: '4-5', prepaid: 75, cod: 120 }] },
+  { zone: 'North', prefix: ['11', '12', '13', '14', '20', '21', '22', '24', '25'], couriers: [{ name: 'Shiprocket', days: '3-4', prepaid: 85, cod: 125 }, { name: 'Delhivery', days: '4-5', prepaid: 70, cod: 110 }] },
+  { zone: 'South', prefix: ['50', '51', '56', '57', '60', '63', '64', '67', '68', '69'], couriers: [{ name: 'Shiprocket', days: '4-5', prepaid: 99, cod: 140 }, { name: 'Delhivery', days: '5-6', prepaid: 85, cod: 130 }] },
+  { zone: 'East', prefix: ['70', '71', '73', '74', '75', '76', '78', '80', '81', '82', '83', '84', '85'], couriers: [{ name: 'Shiprocket', days: '4-5', prepaid: 105, cod: 150 }, { name: 'DTDC', days: '5-7', prepaid: 90, cod: 135 }] },
+  { zone: 'West', prefix: ['30', '31', '32', '33', '34', '36', '38', '39', '40', '41', '42', '43', '44', '45'], couriers: [{ name: 'Shiprocket', days: '3-4', prepaid: 90, cod: 130 }, { name: 'Delhivery', days: '4-5', prepaid: 75, cod: 120 }] },
 ];

@@ -1,7 +1,7 @@
 // MessageInput — bottom composer bar.
 // Phase 3 additions: attachment button, canned-response "/" autocomplete overlay.
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -14,6 +14,7 @@ import {
 import { Send, StickyNote, MessageSquare, X, Paperclip } from 'lucide-react-native';
 import { useUIStore } from '../../store/uiStore';
 import { useCannedResponses } from '../../hooks/useCannedResponses';
+import { wsService } from '../../services/WebSocketService';
 import type { MessageMode, ReplyContext } from '../../types/app';
 
 interface CannedItem {
@@ -29,6 +30,7 @@ interface Props {
   onModeChange: (mode: MessageMode) => void;
   onClearReply: () => void;
   onAttachmentPress: () => void;
+  conversationRemoteId?: number; // needed to send typing indicator to Chatwoot
 }
 
 export default function MessageInput({
@@ -38,10 +40,13 @@ export default function MessageInput({
   onModeChange,
   onClearReply,
   onAttachmentPress,
+  conversationRemoteId,
 }: Props) {
   const { colors } = useUIStore();
   const [text, setText] = useState('');
   const inputRef = useRef<TextInput>(null);
+  // Typing indicator: debounce — send typing_off 3s after user stops typing
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Canned responses: active when text starts with "/"
   const isCannedActive = text.startsWith('/') && text.length > 1;
@@ -56,15 +61,28 @@ export default function MessageInput({
   }, [text, onSend]);
 
   const insertCanned = useCallback((item: CannedItem) => {
+    // Intentional: replace "/" trigger text with full canned response content
     setText(item.content);
     inputRef.current?.focus();
   }, []);
+
+  const handleTextChange = useCallback((value: string) => {
+    setText(value);
+    if (conversationRemoteId && value.length > 0) {
+      wsService.sendTyping(conversationRemoteId, true);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        wsService.sendTyping(conversationRemoteId, false);
+      }, 3000);
+    }
+  }, [conversationRemoteId]);
 
   const isNote = mode === 'note';
   const inputBg = isNote ? colors.noteYellow : colors.surface2;
   const borderColor = isNote ? colors.noteBorder : colors.border;
 
-  const s = StyleSheet.create({
+  // useMemo prevents StyleSheet.create from running on every render — avoids ID registry overflow crash
+  const s = useMemo(() => StyleSheet.create({
     container: {
       backgroundColor: colors.surface,
       borderTopWidth: 1,
@@ -139,7 +157,7 @@ export default function MessageInput({
       alignItems: 'center',
     },
     sendDisabled: { opacity: 0.45 },
-  });
+  }), [colors, mode]);
 
   return (
     <View style={s.container}>
@@ -210,7 +228,7 @@ export default function MessageInput({
             ref={inputRef}
             style={s.input}
             value={text}
-            onChangeText={setText}
+            onChangeText={handleTextChange}
             placeholder={isNote ? 'Add a private note…' : 'Type / for quick replies…'}
             placeholderTextColor={colors.textDim2}
             multiline

@@ -12,7 +12,7 @@ import ConversationModel from '../db/models/ConversationModel';
 import { CONFIG } from '../constants/config';
 
 export function useConversations() {
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, credentials } = useAuthStore();
   const { filters } = useUIStore();
   const [conversations, setConversations] = useState<ConversationModel[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -20,9 +20,22 @@ export function useConversations() {
 
   // Subscribe to live DB changes — re-renders automatically when data changes
   useEffect(() => {
-    const query = conversationsCollection.query(
+    // Build filter clauses — spread into query for clean TypeScript inference
+    const whereClauses = [
       Q.where('status', filters.status),
       Q.where('is_archived', false),
+      ...(filters.assigneeType === 'mine' && credentials?.userId
+        ? [Q.where('assignee_id', credentials.userId)]
+        : []),
+      ...(filters.assigneeType === 'unassigned'
+        ? [Q.where('assignee_id', null)]
+        : []),
+      ...(filters.inboxId
+        ? [Q.where('inbox_id', filters.inboxId)]
+        : []),
+    ];
+    const query = conversationsCollection.query(
+      ...whereClauses,
       Q.sortBy('is_pinned', Q.desc),      // pinned conversations first
       Q.sortBy('last_activity_at', Q.desc)
     );
@@ -42,7 +55,7 @@ export function useConversations() {
     });
 
     return () => subscription.unsubscribe();
-  }, [filters.status, filters.labels]);
+  }, [filters.status, filters.labels, filters.assigneeType, filters.inboxId, credentials?.userId]);
 
   // Background sync from Chatwoot API
   const sync = async () => {
@@ -75,7 +88,7 @@ export function useConversations() {
     lastSyncRef.current.set(key, Date.now());
     sync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn, filters.status, filters.assigneeType]);
+  }, [isLoggedIn, filters.status, filters.assigneeType, filters.inboxId]);
 
   return { conversations, isSyncing, syncError, refetch: sync };
 }

@@ -2,11 +2,25 @@
 // v1 → v2: added gallery_images to products, added addresses table.
 // v2 → v3: added is_pinned/pin_order/is_archived to conversations, reactions_json to messages,
 //           added tasks, orders, knowledge_items tables.
+// v3 → v4: added contact_remote_id/contact_phone to conversations; isIndexed on hot-path columns.
 
 import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/Schema/migrations';
 
 export const migrations = schemaMigrations({
   migrations: [
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'conversations',
+          columns: [
+            // New columns for correct contact navigation (E1) and phone button (E5)
+            { name: 'contact_remote_id', type: 'number', isOptional: true },
+            { name: 'contact_phone', type: 'string', isOptional: true },
+          ],
+        }),
+      ],
+    },
     {
       toVersion: 2,
       steps: [

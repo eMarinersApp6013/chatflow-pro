@@ -88,9 +88,24 @@ class WebSocketService {
   disconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+    // Clear listeners to prevent handler accumulation on reconnect
+    this.listeners.clear();
     this.socket?.close();
     this.socket = null;
     this.emitConnection('disconnected');
+  }
+
+  // Send typing indicator to Chatwoot so customers see the agent is typing
+  sendTyping(conversationId: number, typing: boolean): void {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    this.socket.send(JSON.stringify({
+      command: 'message',
+      identifier: JSON.stringify({ channel: WS_CHANNELS.ROOM, pubsub_token: this._pubsubToken }),
+      data: JSON.stringify({
+        action: typing ? WS_EVENTS.TYPING_ON : WS_EVENTS.TYPING_OFF,
+        conversation_id: conversationId,
+      }),
+    }));
   }
 
   // Subscribe to a specific WS event type; returns unsubscribe fn

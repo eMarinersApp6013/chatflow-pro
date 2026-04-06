@@ -2,7 +2,6 @@
 // Full fuzzy search with typo dictionary, Best-for-Me scoring, shipping rates.
 
 import { productsCollection, cartItemsCollection, wishlistCollection } from '../db/database';
-import { Q } from '@nozbe/watermelondb';
 import type { ShippingResult, SortOption } from '../types/catalog';
 import type ProductModel from '../db/models/ProductModel';
 import { shippingRates } from '../data/demoProducts';
@@ -66,33 +65,6 @@ export const CatalogService = {
     return words.every((w) => t.includes(w));
   },
 
-  // Calculate "Best for Me" score for sorting
-  async getBestForMeScore(product: ProductModel): Promise<number> {
-    let score = 0;
-
-    // +2 if product is in wishlist
-    const wishlisted = await wishlistCollection
-      .query(Q.where('product_remote_id', product.remoteId))
-      .fetchCount();
-    if (wishlisted > 0) score += 2;
-
-    // +3 if same category as items in cart
-    const cartItems = await cartItemsCollection.query().fetch();
-    const cartProductIds = cartItems.map((i) => i.productRemoteId);
-    if (cartProductIds.length > 0) {
-      const cartProducts = await productsCollection.query().fetch();
-      const cartCategories = new Set(
-        cartProducts.filter((p) => cartProductIds.includes(p.remoteId)).map((p) => p.category)
-      );
-      if (cartCategories.has(product.category)) score += 3;
-    }
-
-    // +1 if rating > 4.5
-    if (product.rating > 4.5) score += 1;
-
-    return score;
-  },
-
   // Sort products by option
   async sortProducts(products: ProductModel[], option: SortOption): Promise<ProductModel[]> {
     const sorted = [...products];
@@ -112,12 +84,23 @@ export const CatalogService = {
         sorted.sort((a, b) => a.sortOrder - b.sortOrder);
         break;
       case 'best_for_me': {
-        const scores = await Promise.all(
-          sorted.map(async (p) => ({
-            product: p,
-            score: await CatalogService.getBestForMeScore(p),
-          }))
+        // Prefetch ALL data once — avoids 3 DB queries per product (N+1)
+        const [wishlistItems, cartItems, allProducts] = await Promise.all([
+          wishlistCollection.query().fetch(),
+          cartItemsCollection.query().fetch(),
+          productsCollection.query().fetch(),
+        ]);
+        const wishedIds = new Set(wishlistItems.map((w) => w.productRemoteId));
+        const cartProductIds = new Set(cartItems.map((ci) => ci.productRemoteId));
+        const cartCategories = new Set(
+          allProducts.filter((p) => cartProductIds.has(p.remoteId)).map((p) => p.category)
         );
+        const scores = sorted.map((p) => ({
+          product: p,
+          score: (wishedIds.has(p.remoteId) ? 2 : 0)
+               + (cartCategories.has(p.category) ? 3 : 0)
+               + (p.rating > 4.5 ? 1 : 0),
+        }));
         scores.sort((a, b) => b.score - a.score);
         return scores.map((s) => s.product);
       }
@@ -126,14 +109,14 @@ export const CatalogService = {
     return sorted;
   },
 
-  // Lookup shipping rates by pincode
+  // Lookup shipping rates by pincode (uses first 2 digits for zone detection in India)
   getShippingRates(pincode: string): ShippingResult {
     if (!pincode || pincode.length < 2) {
       return { zone: '', couriers: [], pincodeValid: false };
     }
 
-    const prefix = pincode.substring(0, 1);
-    const zone = shippingRates.find((z) => z.prefix.includes(prefix));
+    // Use first 2 digits — first digit alone can't distinguish zones in India
+    const zone = shippingRates.find((z) => z.prefix.some((p) => pincode.startsWith(p)));
 
     if (!zone) {
       return { zone: 'Unknown', couriers: [], pincodeValid: true };

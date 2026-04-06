@@ -3,40 +3,42 @@ import { appSchema, tableSchema } from '@nozbe/watermelondb';
 // WatermelonDB schema — all local tables
 // Version bumps trigger migrations; always increment when changing columns.
 export const schema = appSchema({
-  version: 3,
+  version: 4,
   tables: [
     tableSchema({
       name: 'conversations',
       columns: [
-        { name: 'remote_id', type: 'number' },           // Chatwoot conversation id
+        { name: 'remote_id', type: 'number', isIndexed: true }, // Chatwoot conversation id
         { name: 'inbox_id', type: 'number' },
-        { name: 'status', type: 'string' },               // open | resolved | pending | snoozed
+        { name: 'status', type: 'string', isIndexed: true },    // open | resolved | pending | snoozed
         { name: 'unread_count', type: 'number' },
-        { name: 'last_activity_at', type: 'number' },     // unix timestamp
+        { name: 'last_activity_at', type: 'number' },           // unix timestamp
         { name: 'contact_id', type: 'string', isOptional: true }, // local WatermelonDB id
+        { name: 'contact_remote_id', type: 'number', isOptional: true }, // Chatwoot contact id (for navigation)
         { name: 'contact_name', type: 'string' },
         { name: 'contact_avatar', type: 'string', isOptional: true },
+        { name: 'contact_phone', type: 'string', isOptional: true }, // for tel: link in chat header
         { name: 'assignee_id', type: 'number', isOptional: true },
         { name: 'assignee_name', type: 'string', isOptional: true },
-        { name: 'labels', type: 'string' },               // JSON array of label titles
+        { name: 'labels', type: 'string' },                     // JSON array of label titles
         { name: 'last_message_content', type: 'string', isOptional: true },
         { name: 'last_message_at', type: 'number', isOptional: true },
         { name: 'muted', type: 'boolean' },
         { name: 'channel', type: 'string', isOptional: true },
         { name: 'is_starred', type: 'boolean' },
-        { name: 'is_pinned', type: 'boolean' },           // pinned to top of list
+        { name: 'is_pinned', type: 'boolean' },                 // pinned to top of list
         { name: 'pin_order', type: 'number', isOptional: true }, // sort order for pinned (timestamp)
-        { name: 'is_archived', type: 'boolean' },          // archived (hidden from main list)
-        { name: 'synced_at', type: 'number' },            // when we last fetched from server
+        { name: 'is_archived', type: 'boolean', isIndexed: true }, // archived (hidden from main list)
+        { name: 'synced_at', type: 'number' },                  // when we last fetched from server
       ],
     }),
 
     tableSchema({
       name: 'messages',
       columns: [
-        { name: 'remote_id', type: 'number' },
-        { name: 'conversation_id', type: 'string' },      // local WatermelonDB id
-        { name: 'conversation_remote_id', type: 'number' },
+        { name: 'remote_id', type: 'number', isIndexed: true },
+        { name: 'conversation_id', type: 'string' },             // local WatermelonDB id
+        { name: 'conversation_remote_id', type: 'number', isIndexed: true },
         { name: 'message_type', type: 'number' },         // 0=incoming 1=outgoing 2=activity 3=template
         { name: 'content', type: 'string', isOptional: true },
         { name: 'private', type: 'boolean' },             // private note (yellow)
@@ -56,7 +58,7 @@ export const schema = appSchema({
     tableSchema({
       name: 'contacts',
       columns: [
-        { name: 'remote_id', type: 'number' },
+        { name: 'remote_id', type: 'number', isIndexed: true },
         { name: 'name', type: 'string' },
         { name: 'email', type: 'string', isOptional: true },
         { name: 'phone_number', type: 'string', isOptional: true },
@@ -71,7 +73,7 @@ export const schema = appSchema({
     tableSchema({
       name: 'labels',
       columns: [
-        { name: 'remote_id', type: 'number' },
+        { name: 'remote_id', type: 'number', isIndexed: true },
         { name: 'title', type: 'string' },
         { name: 'description', type: 'string', isOptional: true },
         { name: 'color', type: 'string' },
@@ -82,7 +84,7 @@ export const schema = appSchema({
     tableSchema({
       name: 'products',
       columns: [
-        { name: 'remote_id', type: 'string' },            // 'p1', 'p2' etc from demo / server id later
+        { name: 'remote_id', type: 'string', isIndexed: true }, // 'p1', 'p2' etc from demo / server id later
         { name: 'name', type: 'string' },
         { name: 'description', type: 'string', isOptional: true },
         { name: 'price', type: 'number' },

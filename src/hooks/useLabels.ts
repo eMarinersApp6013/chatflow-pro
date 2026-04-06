@@ -26,22 +26,16 @@ export function useLabels() {
       .observe()
       .subscribe({
         next: async (records) => {
-          // For each label, count conversations that have it
-          const withCounts = await Promise.all(
-            (records as LabelModel[]).map(async (label) => {
-              const allConvs = await conversationsCollection.query().fetch();
-              const count = allConvs.filter((c) =>
-                c.labels.includes(label.title)
-              ).length;
-              return {
-                id: label.id,
-                remoteId: label.remoteId,
-                title: label.title,
-                color: label.color,
-                count,
-              };
-            })
-          );
+          // Fetch all conversations ONCE — then count across all labels in a single pass
+          // Avoids the N+1 anti-pattern (1 query per label → 50 labels × 500 convs = 25k comparisons)
+          const allConvs = await conversationsCollection.query().fetch();
+          const withCounts = (records as LabelModel[]).map((label) => ({
+            id: label.id,
+            remoteId: label.remoteId,
+            title: label.title,
+            color: label.color,
+            count: allConvs.filter((c) => c.labels.includes(label.title)).length,
+          }));
           setLabels(withCounts);
           setIsLoading(false);
         },

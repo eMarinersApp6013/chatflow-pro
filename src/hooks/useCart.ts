@@ -20,16 +20,21 @@ export function useCart(contactId?: string) {
 
   // Keep global cart summary store in sync
   useEffect(() => {
-    let total = 0;
-    Promise.all(
-      items.map(async (item) => {
-        const products = await productsCollection
-          .query(Q.where('remote_id', item.productRemoteId))
-          .fetch();
-        const product = products[0];
-        if (product) total += product.price * item.quantity;
-      })
-    ).then(() => setCartSummary(items.length, total));
+    const calc = async () => {
+      const allProductIds = items.map((i) => i.productRemoteId);
+      if (allProductIds.length === 0) { setCartSummary(0, 0); return; }
+      // Batch query — one query for ALL products, then lookup by id (avoids N+1)
+      const products = await productsCollection
+        .query(Q.where('remote_id', Q.oneOf(allProductIds)))
+        .fetch();
+      const priceMap = new Map(products.map((p) => [p.remoteId, p.price]));
+      const total = items.reduce(
+        (sum, item) => sum + (priceMap.get(item.productRemoteId) ?? 0) * item.quantity,
+        0
+      );
+      setCartSummary(items.length, total);
+    };
+    calc();
   }, [items]);
 
   const addToCart = async (productRemoteId: string, variant?: string) => {

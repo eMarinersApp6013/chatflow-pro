@@ -4,7 +4,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Q } from '@nozbe/watermelondb';
-import { messagesCollection, database } from '../db/database';
+import { messagesCollection, conversationsCollection, database } from '../db/database';
 import { chatService } from '../services/ChatwootAdapter';
 import { useConnectionStore } from '../store/connectionStore';
 import { toast } from '../store/toastStore';
@@ -16,6 +16,8 @@ export function useMessages(conversationRemoteId: number) {
   const [messages, setMessages] = useState<MessageModel[]>([]);
   const { connectionState } = useConnectionStore();
   const isOnline = connectionState === 'connected';
+  // Concurrency guard — prevents duplicate writes from rapid mount/unmount
+  const loadingRef = useRef(false);
   // Track online ref so flush effect can read latest value
   const isOnlineRef = useRef(isOnline);
   isOnlineRef.current = isOnline;
@@ -37,13 +39,25 @@ export function useMessages(conversationRemoteId: number) {
 
   // Fetch messages from server and write to DB (with upsert to avoid duplicates)
   const loadMessages = async (before?: number) => {
+    // Concurrency guard — prevents duplicate writes from rapid mount/navigation
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       const remote = await chatService.getMessages(conversationRemoteId, before);
+
       await database.write(async () => {
-        const existingAll = await messagesCollection
-          .query(Q.where('conversation_remote_id', conversationRemoteId))
+        // Resolve local WatermelonDB conversation ID for the relational foreign key
+        const convRecords = await conversationsCollection
+          .query(Q.where('remote_id', conversationRemoteId))
           .fetch();
-        const existingIds = new Set(existingAll.map((m) => m.remoteId));
+        const localConvId = convRecords[0]?.id ?? '';
+
+        // Only check the IDs in the incoming batch — avoids loading the full message table
+        const incomingIds = remote.map((m) => m.id);
+        const existingRecords = await messagesCollection
+          .query(Q.where('remote_id', Q.oneOf(incomingIds)))
+          .fetch();
+        const existingIds = new Set(existingRecords.map((m) => m.remoteId));
 
         const ops = remote
           .filter((msg) => !existingIds.has(msg.id)) // skip already-stored
@@ -51,7 +65,7 @@ export function useMessages(conversationRemoteId: number) {
             messagesCollection.prepareCreate((record) => {
               record.remoteId = msg.id;
               record.conversationRemoteId = conversationRemoteId;
-              record.conversationId = '';
+              record.conversationId = localConvId; // correct FK — was '' before
               record.messageType = msg.message_type;
               record.content = msg.content ?? null;
               record.isPrivate = msg.private;
@@ -73,6 +87,8 @@ export function useMessages(conversationRemoteId: number) {
       });
     } catch {
       // Silently fail — messages will load when connection returns
+    } finally {
+      loadingRef.current = false;
     }
   };
 
@@ -139,10 +155,16 @@ export function useMessages(conversationRemoteId: number) {
     let localId: string | null = null;
 
     await database.write(async () => {
+      // Resolve local WatermelonDB conversation ID for the relational foreign key
+      const convRecords = await conversationsCollection
+        .query(Q.where('remote_id', conversationRemoteId))
+        .fetch();
+      const localConvId = convRecords[0]?.id ?? '';
+
       const record = await messagesCollection.create((msg) => {
         msg.remoteId = 0;
         msg.conversationRemoteId = conversationRemoteId;
-        msg.conversationId = '';
+        msg.conversationId = localConvId; // correct FK — was '' before
         msg.messageType = 1; // outgoing
         msg.content = content;
         msg.isPrivate = mode === 'note';
