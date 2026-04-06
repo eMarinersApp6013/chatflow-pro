@@ -15,8 +15,10 @@ export default class ConversationModel extends Model {
   @field('unread_count') unreadCount!: number;
   @field('last_activity_at') lastActivityAt!: number;
   @field('contact_id') contactId!: string | null;
+  @field('contact_remote_id') contactRemoteId!: number | null;
   @field('contact_name') contactName!: string;
   @field('contact_avatar') contactAvatar!: string | null;
+  @field('contact_phone') contactPhone!: string | null;
   @field('assignee_id') assigneeId!: number | null;
   @field('assignee_name') assigneeName!: string | null;
   @field('labels') labelsJson!: string;

@@ -1,4 +1,4 @@
-import { Database } from '@nozbe/watermelondb';
+import { Database, Q } from '@nozbe/watermelondb';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 import { schema } from './schema';
 import { migrations } from './migrations';
@@ -69,3 +69,31 @@ export const addressesCollection =
 export const tasksCollection = database.get<TaskModel>('tasks');
 export const ordersCollection = database.get<OrderModel>('orders');
 export const knowledgeCollection = database.get<KnowledgeItemModel>('knowledge_items');
+
+// One-time backfill: rows created before v3 migration have NULL for is_pinned/is_archived.
+// Q.where('is_archived', false) skips NULL rows → Chats tab appears empty after upgrade.
+export async function backfillMigrationDefaults(): Promise<void> {
+  try {
+    // Fetch conversations where is_archived is not strictly false (catches NULL rows)
+    const convs = await conversationsCollection
+      .query(Q.where('is_archived', Q.notEq(false)))
+      .fetch();
+    if (convs.length === 0) return;
+    const nullRows = convs.filter(
+      (c) => (c as ConversationModel & { _raw: Record<string, unknown> })._raw.is_archived == null
+         || (c as ConversationModel & { _raw: Record<string, unknown> })._raw.is_pinned == null
+    );
+    if (nullRows.length === 0) return;
+    await database.write(async () => {
+      const ops = nullRows.map((c) =>
+        c.prepareUpdate((r) => {
+          if (r.isArchived == null) r.isArchived = false;
+          if (r.isPinned == null) r.isPinned = false;
+        })
+      );
+      await database.batch(...ops);
+    });
+  } catch (e) {
+    console.error('[DB] backfillMigrationDefaults failed:', e);
+  }
+}

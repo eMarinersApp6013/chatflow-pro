@@ -33,20 +33,30 @@ export class ChatwootAdapter extends ChatService {
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        api_access_token: this.apiToken,
-        ...options.headers,
-      },
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      throw new Error(`API ${res.status}: ${text}`);
+    // Guard: prevent silent empty-URL requests before configure() is called
+    if (!this.baseUrl) throw new Error('ChatwootAdapter not configured — call configure() first');
+
+    // 15-second timeout on all requests — prevents hanging on slow/dead connections
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          api_access_token: this.apiToken,
+          ...options.headers,
+        },
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(`API ${res.status}: ${text}`);
+      }
+      return res.json() as Promise<T>;
+    } finally {
+      clearTimeout(timeout);
     }
-    return res.json() as Promise<T>;
   }
 
   async login(chatwootUrl: string, apiToken: string): Promise<LoginResult> {
@@ -78,6 +88,13 @@ export class ChatwootAdapter extends ChatService {
 
   async getConversation(id: number): Promise<ChatwootConversation> {
     return this.request<ChatwootConversation>(API.CONVERSATION(this.accountId, id));
+  }
+
+  async createConversation(contactId: number, inboxId: number, message: string): Promise<ChatwootConversation> {
+    return this.request<ChatwootConversation>(
+      API.CONVERSATION_CREATE(this.accountId),
+      { method: 'POST', body: JSON.stringify({ contact_id: contactId, inbox_id: inboxId, additional_attributes: {}, initial_message: { content: message } }) }
+    );
   }
 
   async getMessages(conversationId: number, before?: number): Promise<ChatwootMessage[]> {
@@ -212,7 +229,7 @@ export class ChatwootAdapter extends ChatService {
 
   async assignTeam(conversationId: number, teamId: number): Promise<void> {
     await this.request<void>(
-      API.CONVERSATION_ASSIGNMENTS(this.accountId, conversationId),
+      API.CONVERSATION_TEAMS(this.accountId, conversationId),
       { method: 'POST', body: JSON.stringify({ team_id: teamId || null }) }
     );
   }

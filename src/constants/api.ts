@@ -47,6 +47,10 @@ export const API = {
   // Assignments
   CONVERSATION_ASSIGNMENTS: (accountId: number, conversationId: number) =>
     `/api/v1/accounts/${accountId}/conversations/${conversationId}/assignments`,
+  CONVERSATION_TEAMS: (accountId: number, conversationId: number) =>
+    `/api/v1/accounts/${accountId}/conversations/${conversationId}/teams`,
+  CONVERSATION_CREATE: (accountId: number) =>
+    `/api/v1/accounts/${accountId}/conversations`,
 
   // WhatsApp templates — per-inbox
   WHATSAPP_TEMPLATES: (accountId: number, inboxId: number) =>

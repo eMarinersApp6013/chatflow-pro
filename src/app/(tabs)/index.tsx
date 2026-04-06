@@ -15,7 +15,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Search, Archive } from 'lucide-react-native';
+import { Search, Archive, Plus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useUIStore } from '../../store/uiStore';
@@ -370,6 +370,30 @@ export default function ChatsScreen() {
         updateCellsBatchingPeriod={30}
         initialNumToRender={20}
       />
+
+      {/* FAB — Start new outbound conversation */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 20,
+          width: 54,
+          height: 54,
+          borderRadius: 27,
+          backgroundColor: colors.green,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 6,
+          elevation: 8,
+        }}
+        onPress={() => router.push('/new-conversation')}
+        activeOpacity={0.85}
+      >
+        <Plus color="#fff" size={26} />
+      </TouchableOpacity>
     </View>
   );
 }

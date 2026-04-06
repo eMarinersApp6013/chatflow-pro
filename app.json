@@ -20,7 +20,8 @@
         "NSMicrophoneUsageDescription": "Used for voice search in the catalog",
         "NSPhotoLibraryUsageDescription": "Used for photo search and sending images",
         "NSCameraUsageDescription": "Used for photo search and sending images",
-        "NSContactsUsageDescription": "Used to save customer contacts to your address book"
+        "NSContactsUsageDescription": "Used to save customer contacts to your address book",
+        "NSPhotoLibraryAddOnlyUsageDescription": "Allow saving images to your photo library"
       }
     },
     "android": {
@@ -31,6 +32,7 @@
       "package": "com.nodesurge.chatflowpro",
       "minSdkVersion": 24,
       "newArchEnabled": false,
+      "softwareKeyboardLayoutMode": "pan",
       "permissions": [
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",

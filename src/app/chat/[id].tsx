@@ -24,6 +24,7 @@ import {
   ListRenderItemInfo,
   ScrollView,
   Modal,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
@@ -36,6 +37,7 @@ import { useConnectionStore } from '../../store/connectionStore';
 import { useMessages } from '../../hooks/useMessages';
 import { useConversation } from '../../hooks/useConversation';
 import { useTyping } from '../../hooks/useTyping';
+import { useLabels } from '../../hooks/useLabels';
 import { wsService } from '../../services/WebSocketService';
 import { chatService } from '../../services/ChatwootAdapter';
 import { WS_EVENTS } from '../../constants/api';
@@ -80,6 +82,7 @@ export default function ChatScreen() {
   const { conversation, isLoading } = useConversation(remoteId);
   const { messages, sendMessage, retryMessage, loadMore } = useMessages(remoteId);
   const { typingUsers } = useTyping(remoteId);
+  const { labels: cachedLabels } = useLabels();
 
   // Build a fast lookup map: remoteId → message for resolving reply-to references
   const messagesById = useMemo(
@@ -105,7 +108,6 @@ export default function ChatScreen() {
   const [forwardContent, setForwardContent] = useState('');
   const [headerMenuVisible, setHeaderMenuVisible] = useState(false);
   const [labelsPickerVisible, setLabelsPickerVisible] = useState(false);
-  const [availableLabels, setAvailableLabels] = useState<string[]>([]);
 
   const listRef = useRef<FlatList>(null);
   const hasScrolledToBottom = useRef(false);
@@ -161,10 +163,16 @@ export default function ChatScreen() {
             .fetchCount();
           if (existing > 0) return;
 
+          // Resolve local WatermelonDB conversation ID for the relational foreign key
+          const convRecords = await conversationsCollection
+            .query(Q.where('remote_id', remoteId))
+            .fetch();
+          const localConvId = convRecords[0]?.id ?? '';
+
           await messagesCollection.create((record) => {
             record.remoteId = msg.id;
             record.conversationRemoteId = remoteId;
-            record.conversationId = '';
+            record.conversationId = localConvId; // correct FK — was '' before
             record.messageType = msg.message_type;
             record.content = msg.content ?? null;
             record.isPrivate = msg.private ?? false;
@@ -397,7 +405,8 @@ export default function ChatScreen() {
 
   const convLabels: string[] = conversation?.labels ?? [];
 
-  const s = StyleSheet.create({
+  // useMemo prevents StyleSheet.create from running on every render — avoids ID registry overflow crash
+  const s = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
     header: {
       flexDirection: 'row',
@@ -473,13 +482,13 @@ export default function ChatScreen() {
     },
     popupRowLast: { borderBottomWidth: 0 },
     popupLabel: { fontSize: 15, color: colors.text },
-  });
+  }), [colors, insets.top]);
 
   return (
     <KeyboardAvoidingView
       style={s.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       {/* ── Header ── */}
       <View style={s.header}>
@@ -497,7 +506,7 @@ export default function ChatScreen() {
 
         <TouchableOpacity
           style={s.headerInfo}
-          onPress={() => conversation && router.push(`/contact/${conversation.remoteId}`)}
+          onPress={() => conversation?.contactRemoteId && router.push(`/contact/${conversation.contactRemoteId}`)}
           activeOpacity={0.7}
         >
           <Text style={s.headerName} numberOfLines={1}>
@@ -513,7 +522,13 @@ export default function ChatScreen() {
         </TouchableOpacity>
 
         <View style={s.headerActions}>
-          <TouchableOpacity style={s.headerBtn}>
+          <TouchableOpacity
+            style={s.headerBtn}
+            onPress={() => {
+              const phone = conversation?.contactPhone;
+              if (phone) Linking.openURL(`tel:${phone}`);
+            }}
+          >
             <Phone color="#ffffff" size={20} />
           </TouchableOpacity>
           <TouchableOpacity style={s.headerBtn} onPress={() => setHeaderMenuVisible(true)}>
@@ -557,9 +572,13 @@ export default function ChatScreen() {
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             contentContainerStyle={s.listContent}
-            onScrollBeginDrag={() => {
-              if (messages.length >= 30 && messages[0]) loadMore(messages[0].remoteId);
+            onScroll={({ nativeEvent }) => {
+              // Load older messages only when scrolled within 200px of the top
+              if (nativeEvent.contentOffset.y < 200 && messages.length >= 30 && messages[0]) {
+                loadMore(messages[0].remoteId);
+              }
             }}
+            scrollEventThrottle={400}
             windowSize={12}
             maxToRenderPerBatch={20}
             updateCellsBatchingPeriod={25}
@@ -592,6 +611,7 @@ export default function ChatScreen() {
         onModeChange={setMode}
         onClearReply={() => setReplyContext(null)}
         onAttachmentPress={() => setAttachmentDrawerVisible(true)}
+        conversationRemoteId={remoteId}
       />
 
       {/* ── Phase 3 overlays ── */}
@@ -652,10 +672,10 @@ export default function ChatScreen() {
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 16 }}>
               Manage Labels
             </Text>
-            {availableLabels.length === 0 ? (
+            {cachedLabels.length === 0 ? (
               <Text style={{ color: colors.textDim, marginBottom: 16 }}>No labels found. Create labels in Chatwoot settings.</Text>
             ) : (
-              availableLabels.map((lbl) => {
+              cachedLabels.map(({ title: lbl }) => {
                 const isActive = convLabels.includes(lbl);
                 return (
                   <TouchableOpacity
@@ -704,15 +724,9 @@ export default function ChatScreen() {
 
             <TouchableOpacity
               style={s.popupRow}
-              onPress={async () => {
+              onPress={() => {
                 setHeaderMenuVisible(false);
-                // Load available labels
-                try {
-                  const lbls = await chatService.getLabels();
-                  setAvailableLabels(lbls.map(l => l.title));
-                } catch {
-                  setAvailableLabels([]);
-                }
+                // Use cached WatermelonDB labels — works offline, no API call needed
                 setLabelsPickerVisible(true);
               }}
               activeOpacity={0.7}

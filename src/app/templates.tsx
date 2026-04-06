@@ -115,7 +115,8 @@ function PreviewModal({ template, conversationId, onClose, onSent, colors }: Pre
     }
   };
 
-  const ps = StyleSheet.create({
+  // useMemo prevents StyleSheet.create from running on every render — avoids ID registry overflow crash
+  const ps = useMemo(() => StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: {
       backgroundColor: colors.surface,
@@ -158,7 +159,7 @@ function PreviewModal({ template, conversationId, onClose, onSent, colors }: Pre
       flexDirection: 'row', gap: 8,
     },
     sendBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  });
+  }), [colors]);
 
   return (
     <Modal transparent visible animationType="slide" onRequestClose={onClose}>

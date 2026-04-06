@@ -1,7 +1,7 @@
 // Canned Responses settings screen — create, edit, delete pre-written responses.
 // "/" in the message input triggers canned response suggestions on the chat screen.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -124,7 +124,8 @@ export default function CannedResponsesScreen() {
     );
   };
 
-  const s = StyleSheet.create({
+  // useMemo prevents StyleSheet.create from running on every render — avoids ID registry overflow crash
+  const s = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
     header: {
       flexDirection: 'row',
@@ -191,7 +192,7 @@ export default function CannedResponsesScreen() {
       marginTop: 4,
     },
     saveBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  });
+  }), [colors]);
 
   return (
     <View style={s.container}>

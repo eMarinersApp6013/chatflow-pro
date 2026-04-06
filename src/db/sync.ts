@@ -13,16 +13,15 @@ export async function upsertConversations(conversations: ChatwootConversation[])
   if (conversations.length === 0) return;
 
   const remoteIds = conversations.map((c) => c.id);
-
-  // Fetch only the existing records that match incoming remote IDs — one query
-  const existingRecords = await conversationsCollection
-    .query(Q.where('remote_id', Q.oneOf(remoteIds)))
-    .fetch();
-
-  const existingMap = new Map(existingRecords.map((r) => [r.remoteId, r]));
   const now = Date.now();
 
   await database.write(async () => {
+    // Read INSIDE the write transaction — prevents stale data from concurrent syncs
+    const existingRecords = await conversationsCollection
+      .query(Q.where('remote_id', Q.oneOf(remoteIds)))
+      .fetch();
+    const existingMap = new Map(existingRecords.map((r) => [r.remoteId, r]));
+
     const ops = conversations.map((conv) => {
       const existing = existingMap.get(conv.id);
       const meta = conv.meta;
@@ -49,6 +48,8 @@ export async function upsertConversations(conversations: ChatwootConversation[])
         record.lastActivityAt = conv.last_activity_at;
         record.contactName = meta.sender.name ?? 'Unknown';
         record.contactAvatar = meta.sender.avatar_url ?? null;
+        record.contactRemoteId = meta.sender.id ?? null;
+        record.contactPhone = (meta.sender as Record<string, unknown>).phone_number as string ?? null;
         record.assigneeId = meta.assignee?.id ?? null;
         record.assigneeName = meta.assignee?.name ?? null;
         record.labelsJson = JSON.stringify(conv.labels ?? []);
