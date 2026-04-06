@@ -111,11 +111,12 @@ jobs:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx3g"
 
       - name: Upload APK artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: ChatFlowPro
           path: android/app/build/outputs/apk/release/app-release.apk
-          retention-days: 7
+          retention-days: 3
 
       - name: Done!
         run: |
