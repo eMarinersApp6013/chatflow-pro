@@ -16,6 +16,8 @@ class WebSocketService {
   private isConnecting = false;
   private _chatwootUrl = '';
   private _pubsubToken = '';
+  // Exponential backoff: starts at 1s, doubles each attempt, caps at 30s
+  private reconnectDelay = 1000;
 
   connect(chatwootUrl: string, pubsubToken: string): void {
     if (this.socket?.readyState === WebSocket.OPEN || this.isConnecting) return;
@@ -40,6 +42,7 @@ class WebSocketService {
 
     this.socket.onopen = () => {
       this.isConnecting = false;
+      this.reconnectDelay = 1000; // Reset backoff on successful connect
       this.emitConnection('connected');
       // Subscribe to RoomChannel with this user's pubsub token
       this.socket?.send(
@@ -77,17 +80,20 @@ class WebSocketService {
     this.socket.onclose = () => {
       this.isConnecting = false;
       this.emitConnection('reconnecting');
-      // Reconnect every 5 seconds as per Phase 6 spec
+      // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (cap)
+      const delay = this.reconnectDelay;
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
       this.reconnectTimer = setTimeout(() => {
         this.emitConnection('connecting');
         this.connect(this._chatwootUrl, this._pubsubToken);
-      }, 5000);
+      }, delay);
     };
   }
 
   disconnect(): void {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+    this.reconnectDelay = 1000; // Reset backoff on intentional disconnect
     // Clear listeners to prevent handler accumulation on reconnect
     this.listeners.clear();
     this.socket?.close();
