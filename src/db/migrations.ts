@@ -9,19 +9,6 @@ import { addColumns, createTable, schemaMigrations } from '@nozbe/watermelondb/S
 export const migrations = schemaMigrations({
   migrations: [
     {
-      toVersion: 4,
-      steps: [
-        addColumns({
-          table: 'conversations',
-          columns: [
-            // New columns for correct contact navigation (E1) and phone button (E5)
-            { name: 'contact_remote_id', type: 'number', isOptional: true },
-            { name: 'contact_phone', type: 'string', isOptional: true },
-          ],
-        }),
-      ],
-    },
-    {
       toVersion: 2,
       steps: [
         addColumns({
@@ -96,6 +83,19 @@ export const migrations = schemaMigrations({
             { name: 'category', type: 'string' },
             { name: 'tags', type: 'string' },
             { name: 'created_at', type: 'number' },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 4,
+      steps: [
+        addColumns({
+          table: 'conversations',
+          columns: [
+            // New columns for correct contact navigation (E1) and phone button (E5)
+            { name: 'contact_remote_id', type: 'number', isOptional: true },
+            { name: 'contact_phone', type: 'string', isOptional: true },
           ],
         }),
       ],

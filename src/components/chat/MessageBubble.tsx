@@ -177,7 +177,7 @@ export default function MessageBubble({
                   style={[styles.fileName, { color: colors.text }]}
                   numberOfLines={1}
                 >
-                  {att.file_url.split('/').pop() ?? 'Attachment'}
+                  {att.file_url?.split('/').pop() ?? 'Attachment'}
                 </Text>
               </View>
             ))}

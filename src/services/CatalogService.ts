@@ -40,9 +40,9 @@ export const CatalogService = {
         corrected = true;
         return CORRECTIONS[w];
       }
-      // Try partial match — check if word starts with any correction key
+      // Try partial match — check if any correction key starts with the typed prefix
       for (const [typo, fix] of Object.entries(CORRECTIONS)) {
-        if (w.length >= 3 && typo.startsWith(w.slice(0, 3)) && w.length <= typo.length + 1) {
+        if (w.length >= 3 && w.startsWith(typo.slice(0, 3)) && w.length <= typo.length + 1) {
           corrected = true;
           return fix;
         }
@@ -111,7 +111,7 @@ export const CatalogService = {
 
   // Lookup shipping rates by pincode (uses first 2 digits for zone detection in India)
   getShippingRates(pincode: string): ShippingResult {
-    if (!pincode || pincode.length < 2) {
+    if (!pincode || pincode.length !== 6) {
       return { zone: '', couriers: [], pincodeValid: false };
     }
 

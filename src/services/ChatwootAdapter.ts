@@ -3,6 +3,7 @@
 
 import { ChatService, LoginResult } from './ChatService';
 import { API } from '../constants/api';
+import { useAuthStore } from '../store/authStore';
 import type {
   ChatwootProfile,
   ChatwootConversation,
@@ -50,6 +51,10 @@ export class ChatwootAdapter extends ChatService {
         },
       });
       if (!res.ok) {
+        // Auto-logout on auth failure — token is expired or revoked
+        if (res.status === 401 || res.status === 403) {
+          useAuthStore.getState().logout();
+        }
         const text = await res.text().catch(() => res.statusText);
         throw new Error(`API ${res.status}: ${text}`);
       }

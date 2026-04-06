@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useUIStore } from '../../store/uiStore';
 import { useConnectionStore } from '../../store/connectionStore';
+import { toast } from '../../store/toastStore';
 import { useMessages } from '../../hooks/useMessages';
 import { useConversation } from '../../hooks/useConversation';
 import { useTyping } from '../../hooks/useTyping';
@@ -207,7 +208,7 @@ export default function ChatScreen() {
       try {
         await chatService.sendAttachment(remoteId, file.uri, file.name, file.mimeType, mode === 'note');
       } catch {
-        // Silently fail
+        toast.error('Upload failed — check your connection and try again');
       }
     },
     [remoteId, mode]
@@ -248,7 +249,7 @@ export default function ChatScreen() {
         await chatService.deleteMessage(remoteId, msg.remoteId);
         await database.write(async () => { await msg.destroyPermanently(); });
       } catch {
-        // Silently fail
+        toast.error('Could not delete message — try again');
       }
     },
     [remoteId]
@@ -284,7 +285,7 @@ export default function ChatScreen() {
         });
       }
     } catch {
-      // Silently fail
+      toast.error('Could not update labels — try again');
     }
   }, [remoteId]);
 
@@ -304,7 +305,7 @@ export default function ChatScreen() {
           });
         }
       } catch {
-        // Silently fail
+        toast.error('Could not assign agent — try again');
       }
     },
     [remoteId]
@@ -315,7 +316,7 @@ export default function ChatScreen() {
       try {
         await chatService.assignTeam(remoteId, team.id);
       } catch {
-        // Silently fail
+        toast.error('Could not assign team — try again');
       }
     },
     [remoteId]
@@ -333,7 +334,7 @@ export default function ChatScreen() {
           });
         }
       } catch {
-        // Silently fail
+        toast.error('Could not change status — try again');
       }
     },
     [remoteId]
@@ -391,8 +392,15 @@ export default function ChatScreen() {
   // Placed after all hooks to comply with React Rules of Hooks
   if (!id || isNaN(remoteId) || remoteId <= 0) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#0b141a', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#8696a0', fontSize: 15 }}>Conversation not found.</Text>
+      <View style={{ flex: 1, backgroundColor: '#0b141a' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: insets.top + 8, paddingHorizontal: 8, paddingBottom: 12, backgroundColor: '#1f2c34' }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ padding: 6 }}>
+            <ArrowLeft color="#ffffff" size={24} />
+          </TouchableOpacity>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: '#8696a0', fontSize: 15 }}>Conversation not found.</Text>
+        </View>
       </View>
     );
   }

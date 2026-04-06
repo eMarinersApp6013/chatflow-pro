@@ -73,8 +73,10 @@ class WebSocketService {
       }
     };
 
-    this.socket.onerror = () => {
+    this.socket.onerror = (event) => {
       this.isConnecting = false;
+      console.warn('[WebSocketService] socket error:', event);
+      this.emitConnection('disconnected');
     };
 
     this.socket.onclose = () => {
