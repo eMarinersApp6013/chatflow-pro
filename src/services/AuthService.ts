@@ -14,12 +14,12 @@ export const AuthService = {
       String(creds.accountId)
     );
     // Store the full credentials as JSON for convenience
-    await SecureStore.setItemAsync('chatflow_credentials', JSON.stringify(creds));
+    await SecureStore.setItemAsync(CONFIG.STORAGE_KEYS.CREDENTIALS, JSON.stringify(creds));
   },
 
   async loadCredentials(): Promise<AuthCredentials | null> {
     try {
-      const raw = await SecureStore.getItemAsync('chatflow_credentials');
+      const raw = await SecureStore.getItemAsync(CONFIG.STORAGE_KEYS.CREDENTIALS);
       if (!raw) return null;
       return JSON.parse(raw) as AuthCredentials;
     } catch {
@@ -31,6 +31,6 @@ export const AuthService = {
     await SecureStore.deleteItemAsync(CONFIG.STORAGE_KEYS.AUTH_TOKEN);
     await SecureStore.deleteItemAsync(CONFIG.STORAGE_KEYS.CHATWOOT_URL);
     await SecureStore.deleteItemAsync(CONFIG.STORAGE_KEYS.ACCOUNT_ID);
-    await SecureStore.deleteItemAsync('chatflow_credentials');
+    await SecureStore.deleteItemAsync(CONFIG.STORAGE_KEYS.CREDENTIALS);
   },
 };

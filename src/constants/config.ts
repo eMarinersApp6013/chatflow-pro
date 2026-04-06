@@ -30,5 +30,6 @@ export const CONFIG = {
     CHATWOOT_URL: 'chatflow_chatwoot_url',
     ACCOUNT_ID: 'chatflow_account_id',
     THEME: 'chatflow_theme',
+    CREDENTIALS: 'chatflow_credentials',
   },
 } as const;
