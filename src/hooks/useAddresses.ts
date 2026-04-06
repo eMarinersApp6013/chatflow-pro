@@ -57,12 +57,14 @@ export function useAddresses() {
   }, []);
 
   const deleteAddress = useCallback(async (addressId: string): Promise<void> => {
-    const records = await addressesCollection.query().fetch();
-    const addr = records.find((r) => r.id === addressId) as AddressModel | undefined;
-    if (!addr) return;
-    await database.write(async () => {
-      await addr.destroyPermanently();
-    });
+    try {
+      const addr = await addressesCollection.find(addressId) as AddressModel;
+      await database.write(async () => {
+        await addr.destroyPermanently();
+      });
+    } catch {
+      // Record not found — nothing to delete
+    }
   }, []);
 
   const setDefaultAddress = useCallback(async (addressId: string): Promise<void> => {

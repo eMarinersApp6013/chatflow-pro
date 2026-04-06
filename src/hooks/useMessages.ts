@@ -51,6 +51,10 @@ export function useMessages(conversationRemoteId: number) {
           .query(Q.where('remote_id', conversationRemoteId))
           .fetch();
         const localConvId = convRecords[0]?.id ?? '';
+        if (!localConvId) {
+          console.warn('[useMessages] conversation not in DB yet — skipping message write for remoteId:', conversationRemoteId);
+          return;
+        }
 
         // Only check the IDs in the incoming batch — avoids loading the full message table
         const incomingIds = remote.map((m) => m.id);

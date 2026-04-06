@@ -21,6 +21,10 @@ export function useLabels() {
 
   // Live DB subscription for labels
   useEffect(() => {
+    // cancelled flag prevents setState on unmounted component when the async
+    // conversationsCollection.fetch() resolves after unmount
+    let cancelled = false;
+
     const subscription = labelsCollection
       .query(Q.sortBy('title', Q.asc))
       .observe()
@@ -29,6 +33,7 @@ export function useLabels() {
           // Fetch all conversations ONCE — then count across all labels in a single pass
           // Avoids the N+1 anti-pattern (1 query per label → 50 labels × 500 convs = 25k comparisons)
           const allConvs = await conversationsCollection.query().fetch();
+          if (cancelled) return;
           const withCounts = (records as LabelModel[]).map((label) => ({
             id: label.id,
             remoteId: label.remoteId,
@@ -40,7 +45,10 @@ export function useLabels() {
           setIsLoading(false);
         },
       });
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Fetch labels from API and save to local DB
