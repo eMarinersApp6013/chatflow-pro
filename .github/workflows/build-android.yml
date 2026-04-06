@@ -83,6 +83,23 @@ jobs:
           path: android/app/build/reports/lint-results-release.html
           retention-days: 3
 
+      # Unit tests run after lint but before the APK build. A non-zero exit
+      # code from any test failure causes Gradle to exit non-zero, failing this
+      # step and stopping the APK build from running on broken code.
+      - name: Run unit tests
+        run: cd android && ./gradlew test --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx3g"
+
+      # Upload even when tests fail so results are always available for review
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: android/app/build/reports/tests/
+          retention-days: 3
+
       # Generate a keystore for signing (reuse across builds via secret, or generate fresh each time for test builds)
       - name: Generate debug keystore for signing
         run: |
