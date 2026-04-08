@@ -67,7 +67,8 @@
           "icon": "./assets/icon.png",
           "color": "#00a884"
         }
-      ]
+      ],
+      "./plugins/withCameraFeature"
     ],
     "experiments": {
       "typedRoutes": true
