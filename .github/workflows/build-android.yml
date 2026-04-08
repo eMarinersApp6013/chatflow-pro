@@ -65,6 +65,41 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      # Lint runs before the APK build. assembleRelease uses -x lint so this is
+      # the single authoritative lint execution. abortOnError is true by default
+      # in Android Gradle — the step fails on Error/Fatal severity issues only;
+      # warnings are reported but do not break the build.
+      - name: Run Android Lint
+        run: cd android && ./gradlew lintRelease --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx3g"
+
+      # Upload even when lint fails so the report is always downloadable
+      - name: Upload Lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: android/app/build/reports/lint-results-release.html
+          retention-days: 3
+
+      # Unit tests run after lint but before the APK build. A non-zero exit
+      # code from any test failure causes Gradle to exit non-zero, failing this
+      # step and stopping the APK build from running on broken code.
+      - name: Run unit tests
+        run: cd android && ./gradlew test --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx3g"
+
+      # Upload even when tests fail so results are always available for review
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: android/app/build/reports/tests/
+          retention-days: 3
+
       # Generate a keystore for signing (reuse across builds via secret, or generate fresh each time for test builds)
       - name: Generate debug keystore for signing
         run: |
@@ -124,3 +159,63 @@ jobs:
           echo "✅ APK built and signed successfully!"
           echo "Download: Actions tab → this run → Artifacts → ChatFlowPro"
           echo "=================================================="
+
+  firebase-test-lab:
+    name: Firebase Test Lab (3 real devices)
+    runs-on: ubuntu-latest
+    # Only run after a successful APK build, and only on main — Test Lab
+    # costs money so we never run it on feature branches.
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      # The APK was already uploaded as an artifact by the build job.
+      # Download it here so we can pass it to Firebase Test Lab.
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ChatFlowPro
+          path: apk/
+
+      # Authenticate using the service account JSON stored in GitHub Secrets.
+      # See FIREBASE_SETUP.md at the repo root for how to create this secret.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Robo test crawls the app automatically — no test code required.
+      # Three real physical devices are chosen to cover:
+      #   oriole  = Pixel 6   (Android 12 / API 31) — modern flagship
+      #   redfin  = Pixel 5   (Android 11 / API 30) — previous gen
+      #   flame   = Pixel 4   (Android 10 / API 29) — older baseline
+      # Results (videos, logcat, crash screenshots) are stored in the
+      # project's default Firebase Storage bucket and emailed to all
+      # project members automatically (configure in Firebase Console →
+      # Test Lab → Notifications).
+      - name: Run Robo test on 3 real devices
+        run: |
+          gcloud firebase test android run \
+            --type robo \
+            --app apk/app-release.apk \
+            --device model=oriole,version=31,locale=en,orientation=portrait \
+            --device model=redfin,version=30,locale=en,orientation=portrait \
+            --device model=flame,version=29,locale=en,orientation=portrait \
+            --results-bucket gs://${{ secrets.FIREBASE_PROJECT_ID }}.appspot.com \
+            --results-dir "run-${{ github.run_id }}-${{ github.sha }}" \
+            --robo-directives ignore:com.google.android.gms.ads=true \
+            --timeout 5m \
+            --project ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Upload Firebase Test Lab results summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-test-results
+          # gcloud writes a local JUnit XML summary alongside the remote bucket results
+          path: |
+            **/test-results/firebase/
+          retention-days: 3
